@@ -70,7 +70,7 @@ export default function SourcesPage() {
     try {
       const response = await fetch('/api/sources', { cache: 'no-store' })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error ?? 'Could not load source proof')
+      if (!response.ok) throw new Error(payload.error ?? 'Could not load source telemetry')
       setSources(payload.sources ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown source error')
@@ -83,7 +83,7 @@ export default function SourcesPage() {
 
   async function assess(source: SourcePayload) {
     if (!source.latestRun) return
-    setAction(current => ({ ...current, [source.id]: 'Assessing the real scrape run…' }))
+    setAction(current => ({ ...current, [source.id]: 'Assessing latest scrape run...' }))
     try {
       const response = await fetch('/api/guardian/assess', {
         method: 'POST',
@@ -100,7 +100,7 @@ export default function SourcesPage() {
   }
 
   async function heal(source: SourcePayload) {
-    setAction(current => ({ ...current, [source.id]: `Starting Bright Data AI self-healing on ${source.collector_id}…` }))
+    setAction(current => ({ ...current, [source.id]: `Starting Bright Data self-healing on ${source.collector_id}...` }))
     try {
       const start = await fetch('/api/guardian/heal', {
         method: 'POST',
@@ -120,19 +120,19 @@ export default function SourcesPage() {
         }
 
         if (payload.autoApproved) {
-          setAction(current => ({ ...current, [source.id]: 'Bright Data repair approved & saved. Waiting for completion…' }))
+          setAction(current => ({ ...current, [source.id]: 'Bright Data repair approved and saved. Waiting for completion...' }))
         } else {
-          setAction(current => ({ ...current, [source.id]: `Healing ${source.collector_id}… ${attempt * 5 + 5}s` }))
+          setAction(current => ({ ...current, [source.id]: `Healing ${source.collector_id}... ${attempt * 5 + 5}s` }))
         }
 
         if (payload.healingComplete) {
-          setAction(current => ({ ...current, [source.id]: `Repair complete on the same collector ${source.collector_id}. Run Compile Live again, then Assess latest run to verify recovery.` }))
+          setAction(current => ({ ...current, [source.id]: `Repair complete on the same collector ${source.collector_id}. Run Compile live again, then assess the latest run to verify recovery.` }))
           await load()
           return
         }
       }
 
-      throw new Error('Healing is still running after 5 minutes. Refresh later; no fake recovery state was emitted.')
+      throw new Error('Healing is still running after 5 minutes. Refresh later. GridForge will not emit a recovered state until verification succeeds.')
     } catch (err) {
       setAction(current => ({ ...current, [source.id]: err instanceof Error ? err.message : 'Healing failed' }))
       await load()
@@ -148,26 +148,26 @@ export default function SourcesPage() {
             <span style={{ color: 'var(--border-default)' }}>/</span>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Source Guardian</span>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing...' : 'Refresh'}</button>
         </div>
       </header>
 
       <main className="container-content" style={{ paddingBlock: '3rem 5rem' }}>
         <div style={{ maxWidth: 650, marginBottom: 34 }}>
-          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--accent-700)', fontWeight: 750, marginBottom: 9 }}>Real telemetry · real c_* collectors</div>
-          <h1 style={{ fontSize: 34, letterSpacing: '-.045em', lineHeight: 1.08, fontWeight: 650, marginBottom: 10 }}>Proof, not a simulated dashboard.</h1>
+          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--accent-700)', fontWeight: 750, marginBottom: 9 }}>Live collector telemetry</div>
+          <h1 style={{ fontSize: 34, letterSpacing: '-.045em', lineHeight: 1.08, fontWeight: 650, marginBottom: 10 }}>Source integrity</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-            This surface reads persisted Bright Data collection runs and Source Guardian events. A degraded controlled demo source can invoke Bright Data&apos;s actual AI self-healing API on the same collector ID.
+            Collection runs, field coverage and recovery events from the active Bright Data source. When critical fields disappear after a layout change, Source Guardian can invoke Bright Data self-healing on the same collector ID.
           </p>
         </div>
 
         {error && <div className="card" style={{ padding: 18, color: 'var(--color-error)', fontSize: 12 }}>{error}</div>}
-        {!error && loading && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading live source telemetry…</p>}
+        {!error && loading && <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading source telemetry...</p>}
 
         {!loading && !error && sources.length === 0 && (
           <div className="card" style={{ padding: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 650, marginBottom: 4 }}>No live source runs yet</div>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Publish the Scraper Studio collector and run Compile Live once. The proof appears here automatically.</p>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Publish the Scraper Studio collector and run Compile live once. The telemetry will appear here.</p>
           </div>
         )}
 
@@ -191,8 +191,8 @@ export default function SourcesPage() {
                   {[
                     ['Collector ID', source.collector_id ?? 'Not configured'],
                     ['Snapshot', source.latestRun?.bright_data_run_id ?? 'No run yet'],
-                    ['Products', source.latestRun ? `${source.latestRun.products_verified ?? 0}/${source.latestRun.products_total ?? 0} verified` : '—'],
-                    ['Last run', source.latestRun ? new Date(source.latestRun.started_at).toLocaleString('en-IN') : '—'],
+                    ['Products', source.latestRun ? `${source.latestRun.products_verified ?? 0}/${source.latestRun.products_total ?? 0} verified` : 'Not available'],
+                    ['Last run', source.latestRun ? new Date(source.latestRun.started_at).toLocaleString('en-IN') : 'Not available'],
                   ].map(([label, value]) => (
                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid var(--border-subtle)', padding: '7px 0' }}>
                       <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{label}</span>
@@ -209,7 +209,7 @@ export default function SourcesPage() {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 17 }}>
                 {source.latestRun && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => void assess(source)}>Assess latest real run</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => void assess(source)}>Assess latest run</button>
                 )}
                 {source.state === 'DEGRADED' && source.collector_id && (
                   <button className="btn btn-primary btn-sm" onClick={() => void heal(source)}>Heal same collector</button>
@@ -219,7 +219,7 @@ export default function SourcesPage() {
 
               {source.recentEvents.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 18, paddingTop: 14 }}>
-                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 9 }}>Real event history</div>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 9 }}>Recent events</div>
                   <div style={{ display: 'grid', gap: 7 }}>
                     {source.recentEvents.slice(0, 6).map(event => (
                       <div key={event.id} style={{ display: 'grid', gridTemplateColumns: '130px 1fr auto', gap: 12, alignItems: 'baseline' }}>
@@ -236,7 +236,7 @@ export default function SourcesPage() {
         </div>
 
         <div style={{ marginTop: 20, padding: '13px 15px', borderRadius: 'var(--radius-md)', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', fontSize: 10, lineHeight: 1.6, color: 'var(--text-tertiary)' }}>
-          Controlled store mutation remains operator-only. During the judge demo, change the deployed demo store to Layout V2, run Compile Live once, assess that run here, and GridForge will expose the genuine DEGRADED → Bright Data self-heal → VERIFYING → RECOVERED sequence.
+          The controlled store is operator-only. For the recovery demo, switch the deployed store to Layout V2, run Compile live, assess the latest collection here, then start self-healing. GridForge only marks the source RECOVERED after a fresh collection restores critical coverage.
         </div>
       </main>
     </div>

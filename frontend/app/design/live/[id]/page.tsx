@@ -10,7 +10,7 @@ const TopologyCanvas = dynamic(() => import('@/components/topology/TopologyCanva
   ssr: false,
   loading: () => (
     <div className="topology-canvas tall" style={{ display: 'grid', placeItems: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
-      Rendering live topology…
+      Rendering live topology...
     </div>
   ),
 })
@@ -89,7 +89,6 @@ export default function LiveDesignPage() {
   useEffect(() => {
     const raw = sessionStorage.getItem(`compile-${params.id}`)
     if (!raw) {
-      // Reading sessionStorage is the external synchronization performed here.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMissing(true)
       return
@@ -114,7 +113,7 @@ export default function LiveDesignPage() {
       <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: 'var(--surface-base)', padding: 24 }}>
         <div style={{ textAlign: 'center' }}>
           <h1 style={{ fontSize: 20, marginBottom: 8 }}>Live run is no longer in this browser session</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>Run Compile Live again to create a fresh Bright Data-backed topology.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>Run Compile live again to create a fresh Bright Data-backed topology.</p>
           <Link className="btn btn-amber" href="/" style={{ textDecoration: 'none' }}>New live compile</Link>
         </div>
       </main>
@@ -122,7 +121,7 @@ export default function LiveDesignPage() {
   }
 
   if (!run) {
-    return <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: 'var(--surface-base)', color: 'var(--text-tertiary)' }}>Loading live design…</main>
+    return <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: 'var(--surface-base)', color: 'var(--text-tertiary)' }}>Loading live design...</main>
   }
 
   const topology = run.result.topology
@@ -143,7 +142,7 @@ export default function LiveDesignPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--accent-700)', fontSize: 10, fontWeight: 750, letterSpacing: '.06em' }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-500)' }} />
-              LIVE · BRIGHT DATA
+              LIVE WITH BRIGHT DATA
             </span>
             <span style={{ padding: '4px 9px', borderRadius: 999, background: 'var(--color-verified-bg)', color: 'var(--color-verified)', fontSize: 10, fontWeight: 700 }}>
               ✓ {topology.validationStatus}
@@ -156,18 +155,18 @@ export default function LiveDesignPage() {
         <div style={{ maxWidth: 760, marginBottom: 28 }}>
           <div style={{ fontSize: 11, color: 'var(--accent-700)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 9 }}>Compiled from the live Web</div>
           <h1 style={{ fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.08, letterSpacing: '-.05em', fontWeight: 650, marginBottom: 10 }}>
-            A buildable topology, not a product list.
+            Validated topology from current inventory.
           </h1>
-          <p style={{ maxWidth: 620, fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-            Every visible component below came through a published Scraper Studio collector. Electrical compatibility was then decided by deterministic constraints — not by Gemini.
+          <p style={{ maxWidth: 650, fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+            Every selected component came through a published Scraper Studio collector. Electrical compatibility is decided by deterministic constraints, not by Gemini.
           </p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: 24 }}>
           <Metric label="Live component cost" value={`₹${costLakhs}L`} detail={budget ? `₹${(budget / 100000).toFixed(2)}L budget` : 'from scraped prices'} />
-          <Metric label="Daily generation" value={`${metrics.dailyEnergyKwh.toFixed(1)} kWh`} detail="sizing assumption shown below" />
+          <Metric label="Daily generation" value={`${metrics.dailyEnergyKwh.toFixed(1)} kWh`} detail="sizing assumptions shown below" />
           <Metric label="Usable storage" value={`${metrics.storedEnergyKwh.toFixed(1)} kWh`} detail={`${topology.batteryUnitCount} battery units`} />
-          <Metric label="PV topology" value={`${topology.pvArray.seriesCount}S × ${topology.pvArray.parallelCount}P`} detail={`${topology.pvArray.totalPanels} live-listed panels`} />
+          <Metric label="PV topology" value={`${topology.pvArray.seriesCount}S × ${topology.pvArray.parallelCount}P`} detail={`${topology.pvArray.totalPanels} available panels`} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 290px', gap: 20, alignItems: 'start', marginBottom: 30 }}>
@@ -205,7 +204,7 @@ export default function LiveDesignPage() {
                   <a href={selectedSource.originalUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 12, fontSize: 11, color: 'var(--accent-700)', textDecoration: 'none' }}>Open original source ↗</a>
                 </>
               ) : (
-                <p style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--text-secondary)' }}>Select the PV array, inverter, or battery node. The collector ID, run ID, price and source URL come with the selected component.</p>
+                <p style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--text-secondary)' }}>Select the PV array, inverter or battery node. The collector ID, run ID, price and source URL stay attached to the selected component.</p>
               )}
             </div>
           </aside>
@@ -229,7 +228,7 @@ export default function LiveDesignPage() {
             <div className="card" style={{ padding: '1.25rem 1.35rem' }}>
               <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--text-tertiary)', fontWeight: 700, marginBottom: 10 }}>Why this system</div>
               <p style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text-secondary)' }}>{run.result.explanation ?? 'Compiled from live components that passed every deterministic constraint.'}</p>
-              <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 8 }}>Explanation: {run.result.explanationBy ?? 'template'} · engineering decision: deterministic compiler</div>
+              <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 8 }}>Explanation: {run.result.explanationBy ?? 'template'} | engineering decision: deterministic compiler</div>
             </div>
 
             {run.result.assumptions?.length ? (
@@ -244,7 +243,7 @@ export default function LiveDesignPage() {
         </section>
 
         <p style={{ marginTop: 28, textAlign: 'center', fontSize: 10, color: 'var(--text-tertiary)' }}>
-          Procurement-aware engineering simulation · not a certified installation or wiring plan
+          Procurement-aware engineering simulation. Not a certified installation or wiring plan.
         </p>
       </main>
     </div>

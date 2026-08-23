@@ -5,36 +5,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
-// ─── Shared Types (inline for now, will be extracted) ─────────────────────────
-
 const EXAMPLE_PROMPTS = [
-  "An off-grid setup for a small farmhouse using around 8 kWh/day, 3 kW peak load, under ₹2 lakh.",
-  "Solar backup for a rural clinic, 12 kWh/day, 5 kW peak, budget ₹3.5 lakh.",
-  "Off-grid cabin, 4 kWh/day, 1.5 kW peak, ₹80,000 budget in Himachal Pradesh.",
+  "Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.",
 ];
 
 const NAV_LINKS = [
   { label: "Sources", href: "/sources" },
 ];
 
-// ─── Mock Requirement Parser (will call Gemini backend) ──────────────────────
-
 function parseMockRequirement(input: string): ParsedChips | null {
   const lower = input.toLowerCase();
 
-  // Extract daily energy
   const kwhMatch = lower.match(/(\d+\.?\d*)\s*k?wh/);
   const dailyKwh = kwhMatch ? parseFloat(kwhMatch[1]) : null;
 
-  // Extract peak load
   const kwMatch = lower.match(/(\d+\.?\d*)\s*kw\s*peak/);
   const peakKw = kwMatch ? parseFloat(kwMatch[1]) : null;
 
-  // Extract budget
   const lakhMatch = lower.match(/₹?\s*(\d+\.?\d*)\s*lakh/);
   const budgetInr = lakhMatch ? parseFloat(lakhMatch[1]) * 100000 : null;
 
-  // System type
   const isOffGrid = lower.includes("off-grid") || lower.includes("off grid") || lower.includes("backup");
 
   if (!dailyKwh && !budgetInr) return null;
@@ -56,8 +46,6 @@ interface ParsedChips {
   systemType: string;
   location: string;
 }
-
-// ─── Navbar ───────────────────────────────────────────────────────────────────
 
 function Navbar() {
   return (
@@ -110,8 +98,6 @@ function Navbar() {
   );
 }
 
-// ─── Logo SVG ─────────────────────────────────────────────────────────────────
-
 function GridForgeLogo() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
@@ -123,8 +109,6 @@ function GridForgeLogo() {
     </svg>
   );
 }
-
-// ─── Requirement Chip ─────────────────────────────────────────────────────────
 
 function RequirementChip({ label, value, color = "neutral" }: {
   label: string;
@@ -162,8 +146,6 @@ function RequirementChip({ label, value, color = "neutral" }: {
   );
 }
 
-// ─── Composer ────────────────────────────────────────────────────────────────
-
 function NLComposer() {
   const router = useRouter();
   const [input, setInput] = useState("");
@@ -173,7 +155,6 @@ function NLComposer() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -181,11 +162,9 @@ function NLComposer() {
     }
   }, [input]);
 
-  // Parse requirement as user types — calls real Gemini API
   useEffect(() => {
     clearTimeout(debounceRef.current);
     if (input.trim().length < 10) {
-      // Clear derived parser state when the external input becomes incomplete.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setChips(null);
       return;
@@ -209,20 +188,15 @@ function NLComposer() {
             location: req.location ?? 'India',
           });
         } else {
-          // Fallback to local parser on API error
-          const parsed = parseMockRequirement(input);
-          setChips(parsed);
+          setChips(parseMockRequirement(input));
         }
       } catch {
-        // Network error — use local fallback silently
-        const parsed = parseMockRequirement(input);
-        setChips(parsed);
+        setChips(parseMockRequirement(input));
       }
       setIsParsing(false);
     }, 800);
     return () => clearTimeout(debounceRef.current);
   }, [input]);
-
 
   function handleExampleClick(prompt: string) {
     setInput(prompt);
@@ -235,12 +209,10 @@ function NLComposer() {
     router.push(`/compile/${mode}?q=${encodeURIComponent(input)}`);
   }
 
-
   const canCompile = input.trim().length > 10;
 
   return (
     <div style={{ width: "100%", maxWidth: "680px" }}>
-      {/* Main composer box */}
       <div
         style={{
           background: "white",
@@ -250,7 +222,6 @@ function NLComposer() {
           transition: "border-color 200ms ease, box-shadow 200ms ease",
           overflow: "hidden",
         }}
-        onFocus={() => {}}
       >
         <textarea
           ref={textareaRef}
@@ -280,7 +251,6 @@ function NLComposer() {
           aria-label="Describe your energy requirement"
         />
 
-        {/* Chips row */}
         <AnimatePresence>
           {chips && (
             <motion.div
@@ -325,7 +295,6 @@ function NLComposer() {
           )}
         </AnimatePresence>
 
-        {/* Bottom bar — Demo / Live mode split */}
         <div
           style={{
             display: "flex",
@@ -337,18 +306,17 @@ function NLComposer() {
           }}
         >
           <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-            {isParsing ? "Parsing with Gemini…" : canCompile ? "⌘↵ for demo · Shift+↵ for live" : "Describe your need above"}
+            {isParsing ? "Parsing requirement..." : canCompile ? "Live uses Bright Data. Demo uses validated fixtures." : "Describe your need above"}
           </span>
 
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            {/* Demo Mode — always available */}
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => handleCompile('demo')}
               disabled={!canCompile || isCompiling}
               id="compile-demo-button"
-              aria-label="Compile in Demo Mode (deterministic fixtures)"
-              title="Demo Mode — uses validated fixtures, instant results"
+              aria-label="Explore Demo Mode using deterministic fixtures"
+              title="Demo Mode uses validated fixtures for an instant walkthrough"
             >
               {isCompiling ? (
                 <SpinnerIcon />
@@ -360,17 +328,16 @@ function NLComposer() {
                   <rect x="7" y="7" width="4" height="4" rx="0.5" fill="currentColor" />
                 </svg>
               )}
-              Demo
+              Explore demo
             </button>
 
-            {/* Live Mode — calls real Bright Data */}
             <button
               className="btn btn-primary btn-sm"
               onClick={() => handleCompile('live')}
               disabled={!canCompile || isCompiling}
               id="compile-live-button"
-              aria-label="Compile in Live Mode — scrapes real component data"
-              title="Live Mode — triggers real Bright Data scraper, uses real electrical specs"
+              aria-label="Compile using live Bright Data inventory"
+              title="Live Mode triggers Bright Data Scraper Studio and uses current scraped specifications"
               style={{
                 background: canCompile && !isCompiling
                   ? "linear-gradient(135deg, var(--accent-500), var(--accent-600))"
@@ -380,12 +347,12 @@ function NLComposer() {
               {isCompiling ? (
                 <>
                   <SpinnerIcon />
-                  Compiling…
+                  Compiling...
                 </>
               ) : (
                 <>
                   <BoltIcon />
-                  Live compile
+                  Compile live
                 </>
               )}
             </button>
@@ -393,11 +360,9 @@ function NLComposer() {
         </div>
       </div>
 
-
-      {/* Example prompts */}
       <div style={{ marginTop: "1.25rem" }}>
         <p style={{ fontSize: "12px", color: "var(--text-tertiary)", marginBottom: "0.625rem", letterSpacing: "0.02em" }}>
-          Try an example:
+          Try the verified live example:
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           {EXAMPLE_PROMPTS.map((prompt) => (
@@ -438,32 +403,30 @@ function NLComposer() {
   );
 }
 
-// ─── How It Works ─────────────────────────────────────────────────────────────
-
 function HowItWorks() {
   const steps = [
     {
       number: "01",
       title: "Describe your need",
-      description: "Write what you need in plain language. GridForge extracts requirements using Gemini.",
+      description: "GridForge turns the requirement into structured energy, load, budget and system constraints.",
       icon: "✦",
     },
     {
       number: "02",
-      title: "Live component fetch",
-      description: "Bright Data Scraper Studio pulls real panels, inverters, and batteries from public solar storefronts.",
+      title: "Collect live inventory",
+      description: "Bright Data Scraper Studio extracts component specifications, prices and availability from the live Web.",
       icon: "◈",
     },
     {
       number: "03",
-      title: "Constraint validation",
-      description: "A deterministic engine verifies every electrical pairing — Voc, MPPT, current limits, battery compatibility.",
+      title: "Validate constraints",
+      description: "A deterministic engine checks voltage, MPPT range, current, storage, peak load and budget.",
       icon: "◇",
     },
     {
       number: "04",
-      title: "Topology compiled",
-      description: "The optimal valid configuration is rendered as an interactive Single-Line Diagram with full provenance.",
+      title: "Compile topology",
+      description: "GridForge selects a valid configuration and renders its Single-Line Diagram with source provenance.",
       icon: "⬡",
     },
   ];
@@ -476,7 +439,7 @@ function HowItWorks() {
             How it works
           </p>
           <h2 style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--text-primary)", maxWidth: "520px", letterSpacing: "-0.03em" }}>
-            From description to buildable system in seconds
+            From requirement to validated topology
           </h2>
         </div>
 
@@ -521,8 +484,6 @@ function HowItWorks() {
   );
 }
 
-// ─── Recovery Story ───────────────────────────────────────────────────────────
-
 function RecoveryStory() {
   return (
     <section style={{ paddingBlock: "4rem", background: "var(--surface-subtle)", borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>
@@ -539,7 +500,7 @@ function RecoveryStory() {
               <span style={{ color: "var(--color-verified)" }}>GridForge heals the system.</span>
             </h2>
             <p style={{ fontSize: "14px", color: "var(--text-secondary)", lineHeight: 1.7 }}>
-              GridForge distinguishes between a broken scraper (DOM drift) and a real business event (stockout). It self-heals the appropriate layer — never conflating infrastructure issues with supply reality.
+              GridForge separates source drift from a real stock change. A broken extraction path is repaired at the collector. A genuine availability change sends the system back to the compiler.
             </p>
           </div>
 
@@ -547,27 +508,23 @@ function RecoveryStory() {
             {[
               {
                 label: "DOM drift detected",
-                desc: "Field coverage dropped — Bright Data heals the same collector ID",
+                desc: "Critical field coverage drops. The source is marked DEGRADED.",
                 color: "var(--color-error)",
-                dot: "DEGRADED",
               },
               {
                 label: "Self-healing triggered",
-                desc: "Bright Data AI refactors selectors. Same collector ID retained.",
+                desc: "Bright Data repairs the collector against the changed page structure. The collector ID is retained.",
                 color: "var(--accent-500)",
-                dot: "HEALING",
               },
               {
                 label: "Source recovered",
-                desc: "Data verified after healing. Full coverage restored.",
+                desc: "A new collection restores critical coverage before GridForge marks the source RECOVERED.",
                 color: "var(--color-verified)",
-                dot: "RECOVERED",
               },
               {
                 label: "Real stockout detected",
-                desc: "Schema intact, availability changed — GridForge recompiles with replacement.",
+                desc: "The scraper remains healthy. GridForge excludes unavailable inventory and recompiles the topology.",
                 color: "var(--accent-700)",
-                dot: "REAL_WORLD",
               },
             ].map((item, i) => (
               <div
@@ -600,8 +557,6 @@ function RecoveryStory() {
   );
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
-
 function Footer() {
   return (
     <footer style={{ borderTop: "1px solid var(--border-subtle)", paddingBlock: "2rem" }}>
@@ -627,14 +582,12 @@ function Footer() {
           ))}
         </div>
         <p style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-          Engineering simulation — not certified installation design
+          Engineering simulation. Not certified installation design.
         </p>
       </div>
     </footer>
   );
 }
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function BoltIcon() {
   return (
@@ -653,15 +606,12 @@ function SpinnerIcon() {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function HomePage() {
   return (
     <>
       <Navbar />
 
       <main>
-        {/* Hero Section */}
         <section style={{ paddingBlock: "6rem 4rem" }}>
           <div className="container-content">
             <div style={{ maxWidth: "680px", marginBottom: "3rem" }}>
@@ -682,7 +632,7 @@ export default function HomePage() {
                     borderRadius: "var(--radius-full)",
                     border: "1px solid rgba(245,158,11,0.25)",
                   }}>
-                    Powered by Bright Data Scraper Studio
+                    Built with Bright Data Scraper Studio
                   </span>
                 </div>
 
@@ -702,15 +652,14 @@ export default function HomePage() {
                   fontSize: "16px",
                   color: "var(--text-secondary)",
                   lineHeight: 1.7,
-                  maxWidth: "520px",
+                  maxWidth: "600px",
                   letterSpacing: "-0.01em",
                 }}>
-                  Describe what you need. GridForge finds live components from real solar suppliers, validates electrical constraints, and compiles a buildable energy system.
+                  GridForge turns live component inventory into electrically validated system designs. This prototype starts with off-grid solar, matching panels, inverters and batteries into a procurement-aware topology.
                 </p>
               </motion.div>
             </div>
 
-            {/* Composer */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -721,13 +670,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* How It Works */}
         <HowItWorks />
-
-        {/* Recovery Story */}
         <RecoveryStory />
 
-        {/* Engineering Trust Section */}
         <section style={{ paddingBlock: "5rem" }}>
           <div className="container-content">
             <div style={{ maxWidth: "580px" }}>
@@ -735,17 +680,17 @@ export default function HomePage() {
                 Engineering integrity
               </p>
               <h2 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.03em", marginBottom: "1.25rem" }}>
-                No hallucinated specs. No silent failures.
+                Source-backed specs. Explicit failures.
               </h2>
               <p style={{ fontSize: "14px", color: "var(--text-secondary)", lineHeight: 1.7, marginBottom: "2rem" }}>
-                Every electrical value comes from scraped public product pages — never from AI inference. Components with missing critical specifications are marked <strong style={{ color: "var(--color-unverified)" }}>UNVERIFIED</strong> and excluded from validated systems. If a system cannot be validated, GridForge says so — and explains why.
+                Critical electrical values come only from scraped source data, never from model inference. Components with missing critical specifications are marked <strong style={{ color: "var(--color-unverified)" }}>UNVERIFIED</strong> and excluded from validated systems. If no configuration passes every constraint, GridForge says so and shows why.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 {[
-                  "Voc, Vmp, Isc, Imp from scraped datasheets — never invented",
-                  "Deterministic constraint engine — auditable, not a score",
-                  "Gemini handles language. Never electrical values.",
-                  "Every price, spec, and topology has Bright Data provenance",
+                  "Voc, Vmp, Isc and Imp come from source data, never invented values",
+                  "The constraint engine is deterministic and auditable",
+                  "Gemini parses language only. It never supplies electrical values",
+                  "Live selections retain Bright Data collector and run provenance",
                 ].map((item) => (
                   <div key={item} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
                     <span style={{ color: "var(--color-verified)", marginTop: "2px", flexShrink: 0 }}>✓</span>

@@ -1,206 +1,274 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License" />
-  <img src="https://img.shields.io/badge/Built_with-Bright_Data-orange.svg" alt="Bright Data" />
-  <img src="https://img.shields.io/badge/AI-Gemini-purple.svg" alt="Gemini" />
-  <img src="https://img.shields.io/badge/Stack-Next.js_+_Supabase-black.svg" alt="Stack" />
-</p>
+# GridForge
 
-<h1 align="center">⚡ GridForge</h1>
-<p align="center"><strong>Compile physical systems from the live Web.</strong></p>
-<p align="center">
-  Describe an off-grid energy requirement → collect live component data with Bright Data →
-  validate electrical constraints deterministically → render an interactive system topology.
-</p>
+**Compile physical systems from the live Web.**
 
----
+GridForge turns live component inventory into electrically validated system designs. The hackathon implementation focuses on off-grid solar, where panels, inverters and batteries must satisfy real electrical constraints before they can become part of a system.
 
-## Why GridForge
+[Live application](https://gridforge-app.vercel.app/) | [Source integrity](https://gridforge-app.vercel.app/sources) | [Public demo store](https://gridforge-demo-store.vercel.app/) | [GitHub Actions](https://github.com/PrathmeshAdsod/GridForge/actions)
 
-Most scraping demos end when JSON appears.
+Built for the WeMakeDevs and Bright Data **Into the Scrape-Verse** hackathon.
 
-GridForge treats web data as **input to a compiler**. Live panel, inverter, battery, price and availability records become an electrically validated physical-system topology with complete collector/run provenance.
+<!-- Final demo video and selected product screenshots will be added here in the final media commit. -->
 
-The reliability story has two deliberately different failure modes:
+## The problem
 
-> **When the Web breaks, Bright Data heals the source. When supply changes, GridForge recompiles the system.**
+Designing a physical system from web inventory is harder than finding products.
 
-- **DOM drift** → critical-field coverage collapses → Source Guardian marks `DEGRADED` → Bright Data AI self-heals the **same `c_*` collector** → a new scrape must restore coverage before `RECOVERED` is emitted.
-- **Real supply change** → scraper/schema remain healthy, but availability changes → `REAL_WORLD_CHANGE` → unavailable inventory is removed → the deterministic compiler searches again.
+A component can be available today and gone tomorrow. The page that exposes its specifications can change structure. Different listings use different labels for the same electrical field. Even when the data is collected correctly, the components still need to work together as a system.
 
----
+Most scraping workflows stop after extraction. GridForge continues from structured web data to a constrained engineering decision.
 
-## Current hackathon proof collector
+For the off-grid solar MVP, that means answering questions such as:
+
+- Which currently available panel, inverter and battery combination can satisfy the requested load?
+- Does the PV string stay inside the inverter voltage and MPPT limits?
+- Is the array current safe for the selected inverter?
+- Does the battery bank match the inverter voltage and requested storage?
+- Does the selected system stay inside the user's budget?
+- Did the source page break, or did the real market state actually change?
+
+GridForge treats those as separate problems and keeps the evidence visible.
+
+## What GridForge does
+
+A user describes an off-grid requirement in plain language, for example:
+
+```text
+Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.
+```
+
+GridForge then:
+
+1. Parses the requirement into structured constraints.
+2. Triggers a published Bright Data Scraper Studio collector.
+3. Normalizes the returned panel, inverter and battery records.
+4. Rejects components that are missing compiler-critical specifications.
+5. Searches possible electrical combinations with a deterministic constraint engine.
+6. Selects a valid topology and renders it as an interactive Single-Line Diagram.
+7. Keeps collector ID, scrape-run ID, price, availability and source provenance attached to the selected components.
+8. Monitors source quality so DOM drift is not confused with a real stock change.
+
+The current implementation starts with off-grid solar. The underlying architecture is organized around components, constraints, sources and topology so the same approach can be extended to other constrained physical systems later.
+
+## Try the working live path
+
+Open [gridforge-app.vercel.app](https://gridforge-app.vercel.app/) and use:
+
+```text
+Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.
+```
+
+Choose **Compile live**.
+
+The verified hackathon run uses Bright Data collector:
 
 ```text
 c_mt4wvcs1e2p0phlh1
 ```
 
-This collector targets the public GridForge demo storefront used for the reproducible DOM-drift and stockout demonstration. Collector IDs are provenance identifiers, not secrets. Bright Data API tokens remain server-side only.
+The current proof collector targets the public GridForge demo storefront at [gridforge-demo-store.vercel.app](https://gridforge-demo-store.vercel.app/). The store exists so DOM changes and stock changes can be reproduced during judging without relying on a third-party site changing at the right moment. It is a controlled public web source, not a commercial retailer.
 
-The Scraper Studio implementation is split correctly into:
+Collector IDs are provenance identifiers and are safe to display. Bright Data API credentials remain server-side.
 
-```text
-scraper/gridforge-demo-store.js         # Interaction code
-scraper/gridforge-demo-store.parser.js  # Current dual-layout parser (Cheerio)
-scraper/gridforge-demo-store.v1-baseline.parser.js # Controlled drift fixture
-```
+## Why Bright Data is central
 
-Scraper Studio is **not** a Puppeteer/Node runtime; the interaction file uses Bright Data's `navigate()`, `parse()` and `collect()` functions.
+Bright Data is not a decorative integration in GridForge. The live compiler depends on the structured records returned by Scraper Studio.
 
----
-
-## Product flow
+The production path is:
 
 ```text
-Natural-language requirement
-          │
-          ▼
-Gemini parse (language only)
-          │
-          ▼
-Structured requirement
-          │
-          ▼
-Bright Data Scraper Studio (c_*)
-          │
-          ▼
-Flat product records + provenance
-          │
-          ▼
-Normalization / schema validation
-          │
-          ▼
-Deterministic constraint compiler
-          │
-          ▼
-Interactive Single-Line Topology
+Public web page
+    -> Bright Data Scraper Studio collector
+    -> collection result
+    -> normalization and field verification
+    -> deterministic electrical compiler
+    -> topology with source provenance
 ```
 
-Gemini is never allowed to invent Voc, Vmp, Isc, Imp, Pmax, battery capacity, inverter limits, prices, or availability, and never decides electrical compatibility.
+The Scraper Studio implementation is split into the two parts expected by the product:
 
----
+```text
+scraper/gridforge-demo-store.js
+scraper/gridforge-demo-store.parser.js
+```
 
-## Modes
+The interaction code uses Bright Data's `navigate()`, `parse()` and `collect()` workflow. The parser extracts a flat record for each product so the backend can verify critical fields before the component reaches the solver.
 
-| Mode | Purpose |
-|---|---|
-| **Demo Mode** | Instant, clearly labelled deterministic fixtures for judges who want to explore the UX quickly. |
-| **Live Mode** | Published Bright Data collector → real collection → normalization → deterministic solver → live topology. Live failures never silently fall back to fixtures. |
+Live Mode calls the Bright Data trigger, poll and dataset flow from server-side Next.js routes. It never substitutes fixture data when the live collection fails.
 
-The Live result page shows the actual selected topology, collector IDs, scrape-run IDs, component provenance and deterministic constraint evidence.
+## Two kinds of change
 
-### Submission-hardening evidence
+A core design decision in GridForge is that a broken source and a changed market are not the same event.
 
-The production proof path has been exercised without fixture fallback using
-collector `c_mt4wvcs1e2p0phlh1` against both storefront layouts. Each layout
-returned five products with 100% coverage across every compiler-critical field.
-The 6.5 kWh/day requirement compiled to a validated 440 W, 2S×2P baseline.
-Changing only inventory values produced `REAL_WORLD_CHANGE` and a new validated
-375 W, 3S×2P topology; it did not invoke scraper healing.
+### 1. The website changes
 
-A separate controlled run published the V1-only baseline, switched the public
-store to V2, and reduced strict critical coverage and verification from 100% to
-0%. GridForge invoked Bright Data's real `refactor_template` flow on the same
-collector. After the AI repair completed and saved, a new V2 collection returned
-five verified products with 100% average and minimum critical coverage and 0%
-schema failures, so the strict Guardian emitted `RECOVERED` / `VERIFICATION_PASSED`.
+A layout change can remove the selectors that previously exposed fields such as `Voc`, `Vmp`, `Isc` and `Pmax`.
 
----
+GridForge records field coverage for each collection. If the page still returns products but compiler-critical coverage collapses, Source Guardian classifies the source as `DEGRADED`.
 
-## Deterministic engineering checks
-
-For the off-grid hackathon MVP, GridForge evaluates candidates using hard constraints such as:
-
-- cold-temperature corrected panel-string `Voc` below inverter max PV voltage;
-- string `Vmp` inside the inverter MPPT operating range;
-- parallel-string `Isc` within inverter input-current limit;
-- total PV array power within inverter PV-power limit;
-- daily generation sizing target;
-- battery-bank/inverter voltage compatibility;
-- inverter rated AC output ≥ required peak load;
-- usable battery storage ≥ requested autonomy;
-- total live component cost within budget.
-
-Missing critical scraped specifications do not become guessed defaults. Those components cannot produce a `VALIDATED` live topology.
-
-> GridForge is an engineering/procurement simulation, not a certified installation or wiring plan.
-
----
-
-## Source Guardian
-
-`/sources` is a real telemetry surface backed by persisted collection runs and health events.
-
-### DOM drift
+The recovery path is:
 
 ```text
 HEALTHY
-  ↓ public store changes HTML
+  -> critical field coverage drops
 DEGRADED
-  ↓ POST /dca/collectors/{c_*}/refactor_template
+  -> Bright Data self-healing starts on the same collector
 HEALING
-  ↓ repair approval/save when required
+  -> repaired collector is saved when approval is required
 VERIFYING
-  ↓ rerun SAME c_* collector
-RECOVERED (only if coverage is actually restored)
+  -> the same c_* collector runs again
+RECOVERED
+  -> emitted only after critical coverage is restored
 ```
 
-### Supply change
+The collector ID does not change during this flow.
+
+For the verified hackathon run, the controlled V2 layout reduced strict compiler-critical coverage from **100% to 0%**. GridForge invoked Bright Data's real self-healing flow on `c_mt4wvcs1e2p0phlh1`. A new collection from the same collector returned five verified products, restored critical coverage to **100%**, and produced zero schema failures before Source Guardian emitted `RECOVERED`.
+
+### 2. Supply changes
+
+A product going out of stock is not a scraper failure.
+
+If the schema and electrical fields are still healthy but availability changes, GridForge classifies the event as `REAL_WORLD_CHANGE`. It excludes unavailable components and runs the deterministic compiler again.
+
+In the verified stockout test:
 
 ```text
-HEALTHY SCRAPER
-  ↓ availability changes in returned data
-REAL_WORLD_CHANGE
-  ↓ exclude unavailable component
-DETERMINISTIC RECOMPILE
-  ↓
-NEW VALID TOPOLOGY / honest NO-SOLUTION
+Before
+SPX-440M
+4 panels
+2S x 2P
+₹220,000
+9 / 9 constraints passed
+
+After stockout
+SPX-375P
+6 panels
+3S x 2P
+₹229,200
+9 / 9 constraints passed
 ```
 
----
+No scraper healing is triggered for this event because the scraper is healthy. The market changed, so the system is recompiled.
+
+This is the product story in one sentence:
+
+> **When the Web breaks, Bright Data heals the source. When supply changes, GridForge recompiles the system.**
+
+## Verified live result
+
+The recommended farmhouse requirement has been exercised end to end in production without fixture fallback.
+
+| Result | Verified value |
+| --- | --- |
+| Bright Data collector | `c_mt4wvcs1e2p0phlh1` |
+| Products returned | 5 |
+| Products verified | 5 / 5 |
+| Minimum critical-field coverage | 100% |
+| Selected panel | SPX-440M |
+| PV configuration | 4 panels, 2S x 2P |
+| Selected inverter | NXG-4KVA-48V |
+| Battery bank | 8 x TuffE-150AH-12V |
+| Total component cost | ₹220,000 |
+| Constraint result | 9 / 9 passed |
+
+The interactive result page also shows the scrape-run IDs, selected component provenance and the evidence behind each engineering check.
+
+## Engineering model
+
+Electrical compatibility is deterministic. Gemini does not decide whether a component is safe or compatible.
+
+The solver evaluates hard constraints including:
+
+- cold-temperature corrected string `Voc` below inverter maximum PV voltage
+- string `Vmp` inside the inverter MPPT operating range
+- parallel-string current inside the inverter input-current limit
+- total PV array power inside the inverter PV-power limit
+- daily generation target under the stated sizing assumptions
+- battery-bank voltage compatibility
+- inverter rated AC output against required peak load
+- usable battery storage against the requested autonomy target
+- total live component cost against budget
+
+Every constraint returns an explicit result and evidence. There is no opaque compatibility score.
+
+If a compiler-critical scraped specification is missing, the component is marked `UNVERIFIED` and cannot produce a validated live topology. GridForge does not ask Gemini to fill missing electrical values.
+
+## Gemini's role
+
+Gemini is intentionally limited to language tasks:
+
+- convert the user's natural-language request into structured requirements
+- normalize ambiguous seller terminology when needed
+- explain a solver decision using already-computed evidence
+
+Engineering truth comes from the deterministic constraint engine. Web truth comes from Bright Data.
+
+## Live Mode and Demo Mode
+
+GridForge exposes two paths on purpose.
+
+| Mode | What it uses | Why it exists |
+| --- | --- | --- |
+| **Live Mode** | Bright Data Scraper Studio, current public web data, deterministic solver | Proves the real sponsor integration and live compilation path |
+| **Demo Mode** | Clearly labelled validated fixtures | Gives judges a fast, deterministic way to explore the UX without depending on a network collection |
+
+Demo Mode never claims to be live. Live Mode never silently falls back to Demo Mode.
+
+## Source Guardian
+
+The [Source integrity](https://gridforge-app.vercel.app/sources) page is backed by persisted collection runs and health events.
+
+It shows:
+
+- active source and collector ID
+- Bright Data snapshot or run ID
+- products returned and verified
+- field coverage for critical attributes
+- source state
+- recent recovery events
+
+The state machine distinguishes `HEALTHY`, `DEGRADED`, `HEALING`, `VERIFYING`, `RECOVERED`, `REAL_WORLD_CHANGE` and `FAILED`.
+
+Recovery is evidence-based. GridForge does not mark a source as recovered until a fresh collection restores the required field coverage.
 
 ## Architecture
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│                          GridForge                            │
-│                                                              │
-│  Next.js / Vercel                                            │
-│    ├─ UI + live topology canvas                              │
-│    └─ server API routes                                      │
-│          ├─ Gemini parse/explain                             │
-│          ├─ Bright Data trigger/poll/dataset                 │
-│          ├─ Source Guardian                                  │
-│          └─ deterministic live compiler                      │
-│                                                              │
-│  Supabase                                                    │
-│    ├─ sources + scrape runs + components                     │
-│    ├─ health events + compilation runs                       │
-│    └─ public demo-store state                                │
-│                                                              │
-│  Bright Data Scraper Studio                                  │
-│    ├─ custom c_* collector                                   │
-│    └─ AI refactor_template self-healing                      │
-└──────────────────────────────────────────────────────────────┘
+User requirement
+    -> Next.js server API
+        -> Gemini requirement parser
+        -> Bright Data Scraper Studio
+            -> collector trigger
+            -> collection polling
+            -> structured dataset
+        -> normalization and verification
+        -> deterministic constraint compiler
+        -> topology JSON
+    -> interactive React Flow topology
+
+Supabase
+    -> source configuration
+    -> scrape runs
+    -> normalized components
+    -> Source Guardian events
+    -> compilation history
+    -> controlled demo-store state
 ```
 
-No persistent Railway worker or Redis service is required for the MVP.
-
----
+Long Bright Data operations are handled as resumable API work rather than a permanently running worker. The MVP therefore does not need Railway, Redis or a separate background-server deployment.
 
 ## Tech stack
 
-- **Web / server:** Next.js 16 + TypeScript + Vercel
-- **Topology UI:** `@xyflow/react` / React Flow
-- **Database:** Supabase Postgres
-- **Scraping:** Bright Data Scraper Studio
-- **AI:** `gemini-3.5-flash-lite` primary, `gemini-3.1-flash-lite` fallback
-- **Engineering truth:** deterministic TypeScript constraints
-- **Testing:** Vitest + GitHub Actions build verification
+- **Frontend and server:** Next.js 16, TypeScript, Vercel
+- **Topology:** `@xyflow/react` / React Flow
+- **Web data:** Bright Data Scraper Studio
+- **Database and state:** Supabase Postgres
+- **Language parsing:** Gemini Flash Lite models
+- **Engineering logic:** deterministic TypeScript constraint engine
+- **Testing:** Vitest and GitHub Actions
 
----
-
-## Repository structure
+## Repository layout
 
 ```text
 GridForge/
@@ -211,25 +279,19 @@ GridForge/
 │   │   │   ├── compile/
 │   │   │   ├── sources/
 │   │   │   └── guardian/
-│   │   │       ├── assess/
-│   │   │       └── heal/
 │   │   ├── compile/demo/
 │   │   ├── compile/live/
 │   │   ├── design/live/[id]/
 │   │   └── sources/
 │   ├── components/topology/
 │   └── lib/
-│       ├── catalog.ts
-│       ├── gemini.ts
-│       ├── live-compiler.ts
-│       └── supabase.ts
+├── backend/
+│   ├── src/domain/constraints/
+│   └── supabase/migrations/
 ├── demo-store/
 │   ├── app/components/LayoutV1.tsx
 │   ├── app/components/LayoutV2.tsx
-│   ├── app/api/admin/route.ts
-│   └── lib/products.ts
-├── backend/
-│   └── src/domain/constraints/
+│   └── app/api/admin/route.ts
 ├── scraper/
 │   ├── gridforge-demo-store.js
 │   ├── gridforge-demo-store.parser.js
@@ -239,57 +301,70 @@ GridForge/
 └── LICENSE
 ```
 
----
-
-## Quick start
+## Run locally
 
 ```bash
 git clone https://github.com/PrathmeshAdsod/GridForge.git
 cd GridForge
 
-cd backend && npm install && npm test && cd ..
-cd frontend && npm install && cd ..
-cd demo-store && npm install && cd ..
+cd backend
+npm install
+npm test
+cd ..
+
+cd frontend
+npm install
+cd ..
+
+cd demo-store
+npm install
+cd ..
 ```
 
-Create local ignored environment files using `.env.example`, then run the Supabase migration:
+Create local ignored environment files from `.env.example`, then apply:
 
 ```text
 backend/supabase/migrations/001_initial.sql
 ```
 
-For the exact Bright Data two-editor setup, production environment variables, deployment order and self-healing demo sequence, read **[SETUP.md](./SETUP.md)**.
+The complete environment-variable list, Scraper Studio two-editor setup, deployment order and recovery-demo procedure are documented in [SETUP.md](./SETUP.md).
 
----
+## Deployment
 
-## Recommended judge-demo requirement
+| Surface | URL |
+| --- | --- |
+| GridForge | https://gridforge-app.vercel.app/ |
+| Source integrity | https://gridforge-app.vercel.app/sources |
+| Controlled public demo store | https://gridforge-demo-store.vercel.app/ |
+| Repository | https://github.com/PrathmeshAdsod/GridForge |
+| CI | https://github.com/PrathmeshAdsod/GridForge/actions |
 
-```text
-Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.
-```
+## Scope and safety
 
-The controlled inventory is designed so a real stock-state transition can force the compiler to search a different panel/topology. The demo must always show the **actual solver result** rather than narrating a pre-scripted outcome.
+GridForge is a procurement-aware engineering simulation, not a certified installation or wiring plan.
 
----
+The current hackathon implementation is intentionally scoped to off-grid solar. It does not calculate structural mounting, protection-device sizing, conductor sizing, permitting or installer-specific requirements.
 
-## Security / integrity
+The project uses public web data only. API tokens, Supabase service-role credentials and demo-store admin credentials remain server-side and are excluded from the repository.
 
-- `.env*`, `HANDOFF.md`, local deployment scripts/logs and secrets are ignored.
-- API tokens and Supabase service-role credentials stay server-side.
-- `c_*` Collector IDs may be shown publicly as provenance.
-- Live Mode has no silent fixture fallback.
-- Demo Mode is visibly labelled.
-- Controlled demo-store mutation is authenticated.
-- Self-healing proof uses the same collector ID before and after repair.
+## Submission checklist
 
----
+The core judge path currently has:
+
+- real published Bright Data collector
+- live trigger, poll and dataset flow
+- 5 / 5 verified components in the proof inventory
+- deterministic topology compilation
+- visible collector and run provenance
+- genuine same-collector Bright Data self-healing
+- strict post-heal verification
+- real stock-state change classification
+- topology recompilation after stockout
+- deterministic Demo Mode fallback
+- passing CI on the validated production build
+
+The final media commit will add the demo video link and selected screenshots at the top of this README.
 
 ## License
 
-Apache 2.0 — see [LICENSE](./LICENSE).
-
----
-
-<p align="center">
-  Built for the <strong>WeMakeDevs × Bright Data “Into the Scrape-Verse”</strong> hackathon.
-</p>
+Apache 2.0. See [LICENSE](./LICENSE).

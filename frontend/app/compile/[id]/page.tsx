@@ -5,8 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type StageStatus = "idle" | "running" | "complete" | "error";
 
 interface CompileStage {
@@ -17,13 +15,11 @@ interface CompileStage {
 
 const STAGES: CompileStage[] = [
   { id: "parsing", label: "Understanding requirement" },
-  { id: "fetching", label: "Fetching live components" },
+  { id: "fetching", label: "Loading validated fixture set" },
   { id: "validating", label: "Validating electrical constraints" },
   { id: "compiling", label: "Compiling topology" },
-  { id: "explaining", label: "Generating explanation" },
+  { id: "explaining", label: "Preparing explanation" },
 ];
-
-// ─── Mock Compilation (simulates real pipeline) ───────────────────────────────
 
 interface CompileStats {
   panels: number;
@@ -41,12 +37,10 @@ async function runMockCompilation(
 ): Promise<void> {
   const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  // Stage 1: Parsing
   onStageUpdate("parsing", "running");
   await delay(900);
   onStageUpdate("parsing", "complete", "8 kWh/day · 3 kW peak · ₹2L budget · Off-grid");
 
-  // Stage 2: Fetching
   onStageUpdate("fetching", "running");
   await delay(400);
   onStats({ panels: 6 });
@@ -55,9 +49,8 @@ async function runMockCompilation(
   await delay(400);
   onStats({ panels: 18, inverters: 11, batteries: 9 });
   await delay(600);
-  onStageUpdate("fetching", "complete", "18 panels · 11 inverters · 9 batteries from 3 sources");
+  onStageUpdate("fetching", "complete", "Validated demo component catalogue loaded");
 
-  // Stage 3: Validating
   onStageUpdate("validating", "running");
   await delay(300);
   onStats({ candidates: 40 });
@@ -67,20 +60,16 @@ async function runMockCompilation(
   onStats({ candidates: 143, rejected: 137 });
   await delay(500);
   onStats({ candidates: 143, rejected: 137, validated: 6, warnings: 0 });
-  onStageUpdate("validating", "complete", "143 evaluated · 137 rejected · 6 fully validated");
+  onStageUpdate("validating", "complete", "143 evaluated · 137 rejected · 6 validated");
 
-  // Stage 4: Compiling
   onStageUpdate("compiling", "running");
   await delay(700);
-  onStageUpdate("compiling", "complete", "Best system selected: 2S×3P · Luminous NXG+ · 4× AGM 100Ah");
+  onStageUpdate("compiling", "complete", "Demo topology selected from the validated fixture set");
 
-  // Stage 5: Explaining
   onStageUpdate("explaining", "running");
   await delay(600);
   onStageUpdate("explaining", "complete");
 }
-
-// ─── Stage Indicator ──────────────────────────────────────────────────────────
 
 function StageRow({
   stage,
@@ -106,7 +95,6 @@ function StageRow({
         borderBottom: "1px solid var(--border-subtle)",
       }}
     >
-      {/* Indicator */}
       <div style={{ width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {status === "complete" && (
           <motion.div
@@ -124,7 +112,6 @@ function StageRow({
         {status === "error" && <ErrorDot />}
       </div>
 
-      {/* Label */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <span
           style={{
@@ -149,7 +136,6 @@ function StageRow({
         </AnimatePresence>
       </div>
 
-      {/* Status label */}
       <div style={{ flexShrink: 0 }}>
         {status === "running" && (
           <span style={{ fontSize: "12px", color: "var(--accent-600)", fontWeight: 500 }}>Running</span>
@@ -165,8 +151,6 @@ function StageRow({
   );
 }
 
-// ─── Live Stats Grid ──────────────────────────────────────────────────────────
-
 function StatCell({ label, value, color }: { label: string; value: number | null; color?: string }) {
   return (
     <div style={{ textAlign: "center" }}>
@@ -179,7 +163,7 @@ function StatCell({ label, value, color }: { label: string; value: number | null
           lineHeight: 1,
         }}
       >
-        {value === null ? "—" : value}
+        {value === null ? "N/A" : value}
       </div>
       <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "4px", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 500 }}>
         {label}
@@ -187,8 +171,6 @@ function StatCell({ label, value, color }: { label: string; value: number | null
     </div>
   );
 }
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function CheckIcon() {
   return (
@@ -230,12 +212,10 @@ function ErrorDot() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 function CompilePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const query = searchParams.get("q") ?? "Off-grid farmhouse, 8 kWh/day, 3 kW peak, ₹2 lakh.";
+  const query = searchParams.get("q") ?? "Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.";
 
   const [stageStatuses, setStageStatuses] = useState<Record<string, StageStatus>>(
     Object.fromEntries(STAGES.map((s) => [s.id, "idle"]))
@@ -267,7 +247,6 @@ function CompilePageInner() {
       }
     ).then(() => {
       setIsDone(true);
-      // Auto-navigate to design page after a short pause
       setTimeout(() => {
         router.push("/design/demo");
       }, 1200);
@@ -278,7 +257,6 @@ function CompilePageInner() {
 
   return (
     <div style={{ minHeight: "100dvh", background: "var(--surface-base)" }}>
-      {/* Thin progress bar at top */}
       <div style={{ height: "2px", background: "var(--border-subtle)", position: "fixed", top: 0, left: 0, right: 0, zIndex: 50 }}>
         <motion.div
           style={{ height: "100%", background: "var(--accent-500)", transformOrigin: "left" }}
@@ -288,13 +266,13 @@ function CompilePageInner() {
       </div>
 
       <div style={{ maxWidth: "640px", margin: "0 auto", padding: "5rem 2rem 4rem" }}>
-        {/* Header */}
         <div style={{ marginBottom: "2.5rem" }}>
           <Link href="/" style={{ fontSize: "13px", color: "var(--text-tertiary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.375rem", marginBottom: "1.5rem" }}>
             ← Back
           </Link>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "var(--text-tertiary)", marginBottom: 8 }}>DEMO MODE · VALIDATED FIXTURES</div>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 600, letterSpacing: "-0.025em", marginBottom: "0.5rem" }}>
-            Compiling system
+            Compiling demo system
           </h1>
           <p style={{
             fontSize: "13px",
@@ -309,7 +287,6 @@ function CompilePageInner() {
           </p>
         </div>
 
-        {/* Stage list */}
         <div style={{ marginBottom: "2.5rem" }}>
           {STAGES.map((stage, i) => (
             <StageRow
@@ -322,7 +299,6 @@ function CompilePageInner() {
           ))}
         </div>
 
-        {/* Live stats */}
         <AnimatePresence>
           {stats.panels > 0 && (
             <motion.div
@@ -337,7 +313,7 @@ function CompilePageInner() {
               }}
             >
               <p style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", fontWeight: 600, marginBottom: "1.25rem" }}>
-                Live component discovery
+                Validated fixture set
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", marginBottom: "1.5rem" }}>
                 <StatCell label="Panels" value={stats.panels} color="var(--accent-700)" />
@@ -359,7 +335,6 @@ function CompilePageInner() {
           )}
         </AnimatePresence>
 
-        {/* Done state */}
         <AnimatePresence>
           {isDone && (
             <motion.div
@@ -380,10 +355,10 @@ function CompilePageInner() {
               </div>
               <div>
                 <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-verified)" }}>
-                  System compiled — 6 constraints passed
+                  Demo topology compiled from validated fixtures
                 </p>
                 <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
-                  Opening design view…
+                  Opening design view...
                 </p>
               </div>
             </motion.div>
@@ -398,7 +373,7 @@ export default function CompilePage() {
   return (
     <Suspense fallback={
       <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ fontSize: 14, color: "var(--text-tertiary)" }}>Initializing…</p>
+        <p style={{ fontSize: 14, color: "var(--text-tertiary)" }}>Initializing...</p>
       </div>
     }>
       <CompilePageInner />

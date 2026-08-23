@@ -8,246 +8,270 @@
 <h1 align="center">⚡ GridForge</h1>
 <p align="center"><strong>Compile physical systems from the live Web.</strong></p>
 <p align="center">
-  Describe your energy need in plain English → GridForge scrapes real component data from the web,
-  validates every electrical constraint, and produces an engineered off-grid solar system design.
+  Describe an off-grid energy requirement → collect live component data with Bright Data →
+  validate electrical constraints deterministically → render an interactive system topology.
 </p>
 
 ---
 
-## What it does
+## Why GridForge
 
-GridForge is a **web-scraping-powered engineering compiler** for off-grid solar systems.
+Most scraping demos end when JSON appears.
 
-1. **Parse** — Describe your requirement in natural language. Gemini extracts structured parameters (daily kWh, peak load, budget, location).
-2. **Scrape** — Bright Data collectors pull live product data from real solar component stores.
-3. **Validate** — Every candidate is checked against 6 electrical constraints (string Voc, MPPT range, current limits, battery bank sizing, peak load, autonomy).
-4. **Compile** — The solver picks the optimal panel/inverter/battery combination that passes all constraints within budget.
-5. **Explain** — Gemini generates a human-readable explanation of the resulting topology.
+GridForge treats web data as **input to a compiler**. Live panel, inverter, battery, price and availability records become an electrically validated physical-system topology with complete collector/run provenance.
 
-### Source Guardian
+The reliability story has two deliberately different failure modes:
 
-GridForge includes a self-healing data layer:
-- **DEGRADED** — when a scraper's DOM selectors break (website redesign), the system detects coverage drops and triggers Bright Data's AI self-healing.
-- **REAL_WORLD_CHANGE** — when schema is intact but product availability/price changes, the system recompiles — it's a real supply event, not a scraper bug.
+> **When the Web breaks, Bright Data heals the source. When supply changes, GridForge recompiles the system.**
+
+- **DOM drift** → critical-field coverage collapses → Source Guardian marks `DEGRADED` → Bright Data AI self-heals the **same `c_*` collector** → a new scrape must restore coverage before `RECOVERED` is emitted.
+- **Real supply change** → scraper/schema remain healthy, but availability changes → `REAL_WORLD_CHANGE` → unavailable inventory is removed → the deterministic compiler searches again.
 
 ---
 
-## Demo
+## Current hackathon proof collector
 
-| Mode | Description |
-|------|-------------|
-| **Demo Mode** | Instant compilation from validated fixtures. Full UI experience with real Gemini explanations. |
-| **Live Mode** | Real Bright Data scrape → real electrical specs → real constraint solver. Requires collector configuration. |
+```text
+c_mt4wvcs1e2p0phlh1
+```
+
+This collector targets the public GridForge demo storefront used for the reproducible DOM-drift and stockout demonstration. Collector IDs are provenance identifiers, not secrets. Bright Data API tokens remain server-side only.
+
+The Scraper Studio implementation is split correctly into:
+
+```text
+scraper/gridforge-demo-store.js         # Interaction code
+scraper/gridforge-demo-store.parser.js  # Parser code (Cheerio)
+```
+
+Scraper Studio is **not** a Puppeteer/Node runtime; the interaction file uses Bright Data's `navigate()`, `parse()` and `collect()` functions.
+
+---
+
+## Product flow
+
+```text
+Natural-language requirement
+          │
+          ▼
+Gemini parse (language only)
+          │
+          ▼
+Structured requirement
+          │
+          ▼
+Bright Data Scraper Studio (c_*)
+          │
+          ▼
+Flat product records + provenance
+          │
+          ▼
+Normalization / schema validation
+          │
+          ▼
+Deterministic constraint compiler
+          │
+          ▼
+Interactive Single-Line Topology
+```
+
+Gemini is never allowed to invent Voc, Vmp, Isc, Imp, Pmax, battery capacity, inverter limits, prices, or availability, and never decides electrical compatibility.
+
+---
+
+## Modes
+
+| Mode | Purpose |
+|---|---|
+| **Demo Mode** | Instant, clearly labelled deterministic fixtures for judges who want to explore the UX quickly. |
+| **Live Mode** | Published Bright Data collector → real collection → normalization → deterministic solver → live topology. Live failures never silently fall back to fixtures. |
+
+The Live result page shows the actual selected topology, collector IDs, scrape-run IDs, component provenance and deterministic constraint evidence.
+
+---
+
+## Deterministic engineering checks
+
+For the off-grid hackathon MVP, GridForge evaluates candidates using hard constraints such as:
+
+- cold-temperature corrected panel-string `Voc` below inverter max PV voltage;
+- string `Vmp` inside the inverter MPPT operating range;
+- parallel-string `Isc` within inverter input-current limit;
+- total PV array power within inverter PV-power limit;
+- daily generation sizing target;
+- battery-bank/inverter voltage compatibility;
+- inverter rated AC output ≥ required peak load;
+- usable battery storage ≥ requested autonomy;
+- total live component cost within budget.
+
+Missing critical scraped specifications do not become guessed defaults. Those components cannot produce a `VALIDATED` live topology.
+
+> GridForge is an engineering/procurement simulation, not a certified installation or wiring plan.
+
+---
+
+## Source Guardian
+
+`/sources` is a real telemetry surface backed by persisted collection runs and health events.
+
+### DOM drift
+
+```text
+HEALTHY
+  ↓ public store changes HTML
+DEGRADED
+  ↓ POST /dca/collectors/{c_*}/refactor_template
+HEALING
+  ↓ repair approval/save when required
+VERIFYING
+  ↓ rerun SAME c_* collector
+RECOVERED (only if coverage is actually restored)
+```
+
+### Supply change
+
+```text
+HEALTHY SCRAPER
+  ↓ availability changes in returned data
+REAL_WORLD_CHANGE
+  ↓ exclude unavailable component
+DETERMINISTIC RECOMPILE
+  ↓
+NEW VALID TOPOLOGY / honest NO-SOLUTION
+```
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     GridForge                            │
-│                                                         │
-│  NL Input → [Gemini Parse] → StructuredRequirement      │
-│                                                         │
-│  Demo Mode: fixtures → Gemini explain → Topology        │
-│                                                         │
-│  Live Mode: [Bright Data Collector]                     │
-│               → normalize → validate                    │
-│               → [Constraint Solver]                     │
-│               → [Gemini explain]                        │
-│               → Topology + Provenance                   │
-│                                                         │
-│  Source Guardian: HEALTHY / DEGRADED / REAL_WORLD_CHANGE│
-│  Self-Heal: Bright Data AI selector repair              │
-└─────────────────────────────────────────────────────────┘
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                          GridForge                            │
+│                                                              │
+│  Next.js / Vercel                                            │
+│    ├─ UI + live topology canvas                              │
+│    └─ server API routes                                      │
+│          ├─ Gemini parse/explain                             │
+│          ├─ Bright Data trigger/poll/dataset                 │
+│          ├─ Source Guardian                                  │
+│          └─ deterministic live compiler                      │
+│                                                              │
+│  Supabase                                                    │
+│    ├─ sources + scrape runs + components                     │
+│    ├─ health events + compilation runs                       │
+│    └─ public demo-store state                                │
+│                                                              │
+│  Bright Data Scraper Studio                                  │
+│    ├─ custom c_* collector                                   │
+│    └─ AI refactor_template self-healing                      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Stack:**
-- **Frontend** — Next.js 15, TypeScript, Framer Motion
-- **AI** — Google Gemini (`gemini-2.5-flash-lite`)
-- **Scraping** — Bright Data Scraper Studio (custom collectors)
-- **Database** — Supabase (PostgreSQL)
-- **Demo Target** — Next.js server-rendered store (V1/V2 layouts for self-healing demo)
-- **Deploy** — Vercel Hobby (free tier)
+No persistent Railway worker or Redis service is required for the MVP.
 
 ---
 
-## Repo Structure
+## Tech stack
 
-```
+- **Web / server:** Next.js 16 + TypeScript + Vercel
+- **Topology UI:** `@xyflow/react` / React Flow
+- **Database:** Supabase Postgres
+- **Scraping:** Bright Data Scraper Studio
+- **AI:** `gemini-3.5-flash-lite` primary, `gemini-3.1-flash-lite` fallback
+- **Engineering truth:** deterministic TypeScript constraints
+- **Testing:** Vitest + GitHub Actions build verification
+
+---
+
+## Repository structure
+
+```text
 GridForge/
-├── frontend/          # Main Next.js app (compiler UI, API routes)
+├── frontend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── parse/       # POST /api/parse — Gemini NL parsing
-│   │   │   ├── compile/     # POST /api/compile — demo or live
-│   │   │   ├── guardian/
-│   │   │   │   ├── assess/  # Source Guardian classification
-│   │   │   │   └── heal/    # Self-heal trigger
-│   │   ├── compile/
-│   │   │   ├── demo/        # Demo mode entry
-│   │   │   └── live/        # Live mode entry (real Bright Data)
-│   │   ├── sources/         # Source Guardian dashboard
-│   │   └── page.tsx         # Landing + NL composer
+│   │   │   ├── parse/
+│   │   │   ├── compile/
+│   │   │   ├── sources/
+│   │   │   └── guardian/
+│   │   │       ├── assess/
+│   │   │       └── heal/
+│   │   ├── compile/demo/
+│   │   ├── compile/live/
+│   │   ├── design/live/[id]/
+│   │   └── sources/
+│   ├── components/topology/
 │   └── lib/
-│       ├── gemini.ts        # Gemini client (parse + explain)
-│       ├── catalog.ts       # Bright Data pipeline (trigger → poll → normalize)
-│       └── supabase.ts      # Supabase client factory
-│
-├── demo-store/        # Server-rendered scraper target (Next.js)
-│   ├── app/
-│   │   ├── page.tsx         # Reads Supabase state → renders V1 or V2
-│   │   ├── api/admin/       # POST /api/admin — layout/stock control
-│   │   └── components/
-│   │       ├── LayoutV1.tsx # Has data-spec attributes → collector works
-│   │       └── LayoutV2.tsx # data-spec REMOVED → triggers DEGRADED state
-│   └── lib/supabase.ts
-│
-├── backend/           # Constraint solver (TypeScript)
+│       ├── catalog.ts
+│       ├── gemini.ts
+│       ├── live-compiler.ts
+│       └── supabase.ts
+├── demo-store/
+│   ├── app/components/LayoutV1.tsx
+│   ├── app/components/LayoutV2.tsx
+│   ├── app/api/admin/route.ts
+│   └── lib/products.ts
+├── backend/
 │   └── src/domain/constraints/
-│
-├── scraper/           # Bright Data collector scripts
-│   └── gridforge-demo-store.js
-│
-└── .env.example       # Required environment variables
+├── scraper/
+│   ├── gridforge-demo-store.js
+│   └── gridforge-demo-store.parser.js
+├── .github/workflows/ci.yml
+├── SETUP.md
+└── LICENSE
 ```
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- [Supabase](https://supabase.com) account (free)
-- [Bright Data](https://brightdata.com) account (for Live Mode)
-- [Google AI Studio](https://makersuite.google.com/app/apikey) API key
-
-### 1. Clone & Install
+## Quick start
 
 ```bash
-git clone https://github.com/yourusername/gridforge.git
-cd gridforge
+git clone https://github.com/PrathmeshAdsod/GridForge.git
+cd GridForge
 
-# Install frontend
+cd backend && npm install && npm test && cd ..
 cd frontend && npm install && cd ..
-
-# Install demo store
 cd demo-store && npm install && cd ..
 ```
 
-### 2. Configure Environment
+Create local ignored environment files using `.env.example`, then run the Supabase migration:
 
-Copy `.env.example` to `frontend/.env.local` and fill in your keys:
-
-```bash
-cp .env.example frontend/.env.local
+```text
+backend/supabase/migrations/001_initial.sql
 ```
 
-Required variables:
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-GEMINI_API_KEY=AIza...
-```
-
-For Live Mode (optional):
-```env
-BRIGHT_DATA_API_TOKEN=your-token
-BRIGHT_DATA_DEMO_STORE_COLLECTOR_ID=c_xxxxxxxx
-```
-
-### 3. Run Database Migration
-
-```bash
-# Using Supabase dashboard: paste contents of backend/supabase/migrations/001_initial.sql
-# Or using psql:
-psql "postgresql://postgres:YOUR_DB_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres" \
-  -f backend/supabase/migrations/001_initial.sql
-```
-
-### 4. Start Local Development
-
-```bash
-# Terminal 1 — Demo Store (scraper target)
-cd demo-store && npm run dev   # http://localhost:3001
-
-# Terminal 2 — Frontend
-cd frontend && npm run dev     # http://localhost:3000
-```
-
-### 5. Configure Bright Data (for Live Mode)
-
-See [`SETUP.md`](./SETUP.md) for step-by-step instructions to create a Scraper Studio collector.
+For the exact Bright Data two-editor setup, production environment variables, deployment order and self-healing demo sequence, read **[SETUP.md](./SETUP.md)**.
 
 ---
 
-## Demo Store Admin
+## Recommended judge-demo requirement
 
-The demo store exposes an admin API to control its state for demonstrating self-healing:
-
-```bash
-# Switch to V2 layout (breaks scraper — triggers DEGRADED)
-curl -X POST http://localhost:3001/api/admin \
-  -H "Authorization: Bearer YOUR_DEMO_ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"action":"layout_v2"}'
-
-# Reset to V1 (restores scraper — triggers RECOVERED)
-curl -X POST http://localhost:3001/api/admin \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_DEMO_ADMIN_TOKEN" \
-  -d '{"action":"reset"}'
-
-# Trigger stockout (real-world supply change — REAL_WORLD_CHANGE)
-curl -X POST http://localhost:3001/api/admin \
-  -H "Authorization: Bearer YOUR_DEMO_ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"action":"out_of_stock"}'
+```text
+Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.
 ```
 
----
-
-## API Reference
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/parse` | POST | Parse natural language requirement with Gemini |
-| `/api/compile` | POST | Compile system in `demo` or `live` mode |
-| `/api/guardian/assess` | POST | Classify scrape health for a source |
-| `/api/guardian/heal` | POST | Trigger Bright Data self-heal on a degraded source |
+The controlled inventory is designed so a real stock-state transition can force the compiler to search a different panel/topology. The demo must always show the **actual solver result** rather than narrating a pre-scripted outcome.
 
 ---
 
-## Deployment
+## Security / integrity
 
-Deploy both apps to Vercel:
-
-```bash
-# Deploy demo store first (get URL for collector config)
-cd demo-store && npx vercel --prod
-
-# Deploy frontend
-cd frontend && npx vercel --prod
-```
-
-Add environment variables in Vercel Dashboard for each project (see `.env.example`).
-
----
-
-## Contributing
-
-Contributions welcome. Please open an issue first to discuss what you'd like to change.
+- `.env*`, `HANDOFF.md`, local deployment scripts/logs and secrets are ignored.
+- API tokens and Supabase service-role credentials stay server-side.
+- `c_*` Collector IDs may be shown publicly as provenance.
+- Live Mode has no silent fixture fallback.
+- Demo Mode is visibly labelled.
+- Controlled demo-store mutation is authenticated.
+- Self-healing proof uses the same collector ID before and after repair.
 
 ---
 
 ## License
 
-Apache 2.0 — see [LICENSE](./LICENSE)
+Apache 2.0 — see [LICENSE](./LICENSE).
 
 ---
 
 <p align="center">
-  Built for the <strong>WeMakeDevs × Bright Data "Into the Scrape-Verse"</strong> hackathon
+  Built for the <strong>WeMakeDevs × Bright Data “Into the Scrape-Verse”</strong> hackathon.
 </p>

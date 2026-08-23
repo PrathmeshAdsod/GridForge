@@ -1,34 +1,22 @@
 "use client";
 
-/**
- * /compile/live — Entry point for Live Mode compilation.
- * 
- * Calls /api/compile with mode: "live"
- * Shows LIVE badge, animated scraping progress.
- * 
- * CRITICAL: Never falls back silently to demo data.
- * On live pipeline failure: shows error with full detail.
- */
-
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
 
-type LiveStage = 
+type LiveStage =
   | 'parsing'
   | 'triggering_scraper'
   | 'scraping'
-  | 'normalizing'
   | 'solving'
   | 'complete'
   | 'error';
 
 const STAGE_LABELS: Record<LiveStage, string> = {
   parsing: 'Parsing requirement with Gemini…',
-  triggering_scraper: 'Triggering Bright Data collector…',
-  scraping: 'Live scraping in progress…',
-  normalizing: 'Normalizing & validating scraped data…',
-  solving: 'Running constraint solver…',
-  complete: 'System compiled from live data',
+  triggering_scraper: 'Triggering Bright Data Scraper Studio…',
+  scraping: 'Collecting & verifying live component data…',
+  solving: 'Running deterministic electrical compiler…',
+  complete: 'Live system compiled',
   error: 'Live pipeline error',
 };
 
@@ -41,9 +29,8 @@ function CompileLiveEntry() {
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
-  // Elapsed timer
   useEffect(() => {
-    const interval = setInterval(() => setElapsed(e => e + 1), 1000);
+    const interval = setInterval(() => setElapsed(value => value + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -53,63 +40,59 @@ function CompileLiveEntry() {
 
     async function run() {
       try {
-        // Step 1: Parse NL
         setStage('parsing');
-        const parseResp = await fetch('/api/parse', {
+        const parseResponse = await fetch('/api/parse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nl: q }),
         });
-        const parseData = await parseResp.json();
-        const requirement = parseData.requirement;
+        const parsePayload = await parseResponse.json();
 
-        // Step 2: Trigger live pipeline
-        setStage('triggering_scraper');
-        await new Promise(r => setTimeout(r, 500));
-        setStage('scraping');
-
-        const compileResp = await fetch('/api/compile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'live', requirement, nl: q }),
-        });
-
-        const result = await compileResp.json();
-
-        if (!compileResp.ok || !result.ok) {
-          // NEVER silently fall back to demo — show error
-          setStage('error');
-          setErrorDetail(
-            result.detail ??
-            result.error ??
-            `HTTP ${compileResp.status}: Live pipeline returned an error`
-          );
-          return;
+        if (!parseResponse.ok || !parsePayload.requirement) {
+          throw new Error(parsePayload.error ?? 'Could not parse the requirement')
         }
 
-        setStage('normalizing');
-        await new Promise(r => setTimeout(r, 300));
+        setStage('triggering_scraper');
+        await new Promise(resolve => setTimeout(resolve, 250));
+        setStage('scraping');
+
+        const compileResponse = await fetch('/api/compile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'live',
+            requirement: parsePayload.requirement,
+            nl: q,
+          }),
+        });
+        const result = await compileResponse.json();
+
+        if (!compileResponse.ok || !result.ok) {
+          setStage('error');
+          const assumptions = Array.isArray(result.assumptions)
+            ? `\nAssumptions: ${result.assumptions.join(' · ')}`
+            : ''
+          setErrorDetail(`${result.detail ?? result.error ?? `HTTP ${compileResponse.status}`}${assumptions}`)
+          return
+        }
+
         setStage('solving');
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(resolve => setTimeout(resolve, 300));
         setStage('complete');
 
-        // Store result and navigate
         const runId = `live-${Date.now()}`;
         sessionStorage.setItem(`compile-${runId}`, JSON.stringify({
           mode: 'live',
           q,
-          requirement,
+          requirement: parsePayload.requirement,
           result,
         }));
 
-        router.replace(`/compile/${runId}?q=${encodeURIComponent(q)}&mode=live`);
-
-      } catch (err) {
-        // Network error — show error, DO NOT redirect to demo
+        await new Promise(resolve => setTimeout(resolve, 350));
+        router.replace(`/design/live/${runId}`);
+      } catch (error) {
         setStage('error');
-        setErrorDetail(
-          err instanceof Error ? err.message : 'Network error — check console'
-        );
+        setErrorDetail(error instanceof Error ? error.message : 'Unknown live pipeline error');
       }
     }
 
@@ -117,130 +100,98 @@ function CompileLiveEntry() {
   }, [q, router]);
 
   const isError = stage === 'error';
+  const steps: LiveStage[] = ['parsing', 'triggering_scraper', 'scraping', 'solving'];
+  const currentIndex = steps.indexOf(stage);
 
   return (
-    <div style={{
+    <main style={{
       minHeight: "100dvh",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
+      display: "grid",
+      placeItems: "center",
       background: "var(--surface-base)",
-      gap: "1.25rem",
       padding: "2rem",
     }}>
-      {/* Live badge */}
-      <div style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "6px",
-        padding: "4px 12px",
-        borderRadius: "6px",
-        background: isError ? "var(--color-error-bg)" : "rgba(245,158,11,0.08)",
-        border: `1px solid ${isError ? "var(--color-error)" : "rgba(245,158,11,0.3)"}`,
-        fontSize: "11px",
-        fontWeight: 700,
-        color: isError ? "var(--color-error)" : "var(--accent-600)",
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-      }}>
-        {isError ? "⚠ LIVE PIPELINE ERROR" : "⚡ LIVE MODE"}
-      </div>
-
-      {/* Stage */}
-      <p style={{ fontSize: 16, color: "var(--text-primary)", fontWeight: 500 }}>
-        {STAGE_LABELS[stage]}
-      </p>
-
-      {/* Progress dots */}
-      {!isError && stage !== 'complete' && (
-        <div style={{ display: "flex", gap: "6px" }}>
-          {(['parsing', 'triggering_scraper', 'scraping', 'normalizing', 'solving'] as LiveStage[]).map((s, i) => {
-            const stageOrder = ['parsing', 'triggering_scraper', 'scraping', 'normalizing', 'solving'];
-            const currentIdx = stageOrder.indexOf(stage);
-            const isDone = i < currentIdx;
-            const isCurrent = i === currentIdx;
-            return (
-              <div key={s} style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: isDone
-                  ? "var(--accent-500)"
-                  : isCurrent
-                  ? "var(--accent-400)"
-                  : "var(--border-default)",
-                transition: "background 300ms",
-                opacity: isCurrent ? 1 : isDone ? 0.8 : 0.4,
-              }} />
-            );
-          })}
+      <section style={{ width: "min(560px, 100%)" }}>
+        <div style={{ marginBottom: 28 }}>
+          <a href="/" style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "none" }}>← GridForge</a>
         </div>
-      )}
 
-      {/* Timer */}
-      {!isError && (
-        <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "monospace" }}>
-          {elapsed}s — Live scraping may take 1–5 minutes
-        </span>
-      )}
-
-      {/* Error detail */}
-      {isError && errorDetail && (
         <div style={{
-          maxWidth: 540,
-          padding: "1.25rem",
-          background: "var(--color-error-bg)",
-          border: "1px solid var(--color-error)",
-          borderRadius: "var(--radius-md)",
-          textAlign: "left",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "5px 10px",
+          borderRadius: 999,
+          background: isError ? "var(--color-error-bg)" : "rgba(245,158,11,0.08)",
+          border: `1px solid ${isError ? "var(--color-error)" : "rgba(245,158,11,0.22)"}`,
+          fontSize: 10,
+          fontWeight: 700,
+          color: isError ? "var(--color-error)" : "var(--accent-700)",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          marginBottom: 18,
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-error)", marginBottom: 8 }}>
-            Pipeline Error — No fallback used
-          </div>
-          <p style={{ fontSize: 13, color: "var(--text-primary)", fontFamily: "monospace", lineHeight: 1.6 }}>
-            {errorDetail}
-          </p>
-          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem" }}>
-            <a
-              href={`/compile/demo?q=${encodeURIComponent(q)}`}
-              style={{
-                fontSize: 13,
-                color: "var(--text-secondary)",
-                padding: "0.375rem 0.75rem",
-                border: "1px solid var(--border-default)",
-                borderRadius: "var(--radius-sm)",
-                textDecoration: "none",
-              }}
-            >
-              Switch to Demo Mode
-            </a>
-            <a
-              href="/BRIGHT_DATA_SETUP.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                fontSize: 13,
-                color: "var(--accent-600)",
-                textDecoration: "none",
-              }}
-            >
-              → Setup Guide
-            </a>
-          </div>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+          {isError ? 'Live pipeline stopped' : 'Live · Bright Data'}
         </div>
-      )}
-    </div>
+
+        <h1 style={{ fontSize: 28, letterSpacing: '-0.04em', fontWeight: 650, marginBottom: 8 }}>
+          {STAGE_LABELS[stage]}
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 26 }}>
+          {q}
+        </p>
+
+        {!isError && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {steps.map((step, index) => (
+              <div key={step} style={{
+                height: 3,
+                flex: 1,
+                borderRadius: 99,
+                background: index <= currentIndex || stage === 'complete'
+                  ? 'var(--accent-500)'
+                  : 'var(--border-subtle)',
+                opacity: index === currentIndex ? 1 : 0.65,
+                transition: 'background 240ms ease',
+              }} />
+            ))}
+          </div>
+        )}
+
+        {!isError && (
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+            {elapsed}s · Scraper Studio collection can take a few minutes
+          </p>
+        )}
+
+        {isError && errorDetail && (
+          <div style={{
+            background: 'var(--color-error-bg)',
+            border: '1px solid rgba(220,38,38,0.25)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '1rem 1.1rem',
+          }}>
+            <p style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.65, color: 'var(--text-primary)', marginBottom: 14 }}>
+              {errorDetail}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <a href={`/compile/live?q=${encodeURIComponent(q)}`} className="btn btn-amber btn-sm" style={{ textDecoration: 'none' }}>Retry live</a>
+              <a href={`/compile/demo?q=${encodeURIComponent(q)}`} className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>Explore demo</a>
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 12 }}>
+              Live Mode never silently falls back to fixtures.
+            </p>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
 
 export default function CompileLivePage() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-base)" }}>
-        <p style={{ fontSize: 14, color: "var(--text-tertiary)" }}>Loading live compiler…</p>
-      </div>
-    }>
+    <Suspense fallback={<main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}>Loading…</main>}>
       <CompileLiveEntry />
     </Suspense>
   );

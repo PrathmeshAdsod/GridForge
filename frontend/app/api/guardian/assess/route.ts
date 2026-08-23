@@ -1,19 +1,13 @@
-/**
- * POST /api/guardian/assess
- *
- * Runs Source Guardian assessment on a completed scrape run.
- * Classifies: HEALTHY | DEGRADED | REAL_WORLD_CHANGE | FAILED
- *
- * Called automatically after every collector trigger completes.
- * Also callable manually from the Sources page for demo.
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 
-// ── Guardian thresholds ───────────────────────────────────────────────────────
-const DEGRADATION_FIELD_COVERAGE_THRESHOLD = 0.60  // <60% = DEGRADED
-const SCHEMA_FAILURE_RATE_THRESHOLD = 0.30          // >30% = DEGRADED
+const DEGRADATION_FIELD_COVERAGE_THRESHOLD = 0.60
+const SCHEMA_FAILURE_RATE_THRESHOLD = 0.30
+const CRITICAL_FIELDS = ['pmax', 'voc', 'vmp', 'isc'] as const
+
+function averageCriticalCoverage(coverage: Record<string, number>): number {
+  return CRITICAL_FIELDS.reduce((sum, field) => sum + (coverage[field] ?? 0), 0) / CRITICAL_FIELDS.length
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.json() as {
@@ -22,139 +16,139 @@ export async function POST(request: NextRequest) {
     triggeredBy?: string
   }
 
-  const { sourceId, scrapeRunId, triggeredBy } = body
-
-  if (!sourceId) {
+  if (!body.sourceId) {
     return NextResponse.json({ error: 'Missing sourceId' }, { status: 400 })
   }
 
   const supabase = createServerClient()
-
-  // ── Get source details ──────────────────────────────────────────────────────
   const { data: source } = await supabase
     .from('sources')
     .select('*')
-    .eq('id', sourceId)
+    .eq('id', body.sourceId)
     .single()
 
-  if (!source) {
-    return NextResponse.json({ error: 'Source not found' }, { status: 404 })
-  }
+  if (!source) return NextResponse.json({ error: 'Source not found' }, { status: 404 })
 
-  const collectorId = source.collector_id ?? 'unknown'
+  let latestRun: any = null
 
-  // ── Get the latest scrape run for this source ───────────────────────────────
-  const { data: latestRun } = await supabase
-    .from('scrape_runs')
-    .select('*')
-    .eq('source_id', sourceId)
-    .eq('id', scrapeRunId ?? '')
-    .single()
-    ?? await supabase
+  if (body.scrapeRunId) {
+    const { data } = await supabase
       .from('scrape_runs')
       .select('*')
-      .eq('source_id', sourceId)
+      .eq('source_id', body.sourceId)
+      .eq('id', body.scrapeRunId)
+      .maybeSingle()
+    latestRun = data
+  } else {
+    const { data } = await supabase
+      .from('scrape_runs')
+      .select('*')
+      .eq('source_id', body.sourceId)
       .order('started_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
+    latestRun = data
+  }
 
   if (!latestRun) {
     return NextResponse.json({ error: 'No scrape runs found for source' }, { status: 404 })
   }
 
-  // ── Get previous baseline run (to compare) ──────────────────────────────────
-  const { data: previousRuns } = await supabase
+  const { data: previousRows } = await supabase
     .from('scrape_runs')
     .select('*')
-    .eq('source_id', sourceId)
+    .eq('source_id', body.sourceId)
     .eq('status', 'complete')
     .neq('id', latestRun.id)
     .order('started_at', { ascending: false })
     .limit(1)
 
-  const previousRun = previousRuns?.[0]
+  const previousRun = previousRows?.[0] ?? null
+  const currentCoverage = (latestRun.field_coverage ?? {}) as Record<string, number>
+  const previousCoverage = (previousRun?.field_coverage ?? {}) as Record<string, number>
+  const avgCoverage = averageCriticalCoverage(currentCoverage)
+  const previousAvgCoverage = previousRun ? averageCriticalCoverage(previousCoverage) : null
+  const schemaFailureRate = Number(latestRun.schema_failure_rate ?? 0)
 
-  // ── Compute current metrics ─────────────────────────────────────────────────
-  const currentCoverage = latestRun.field_coverage as Record<string, number> | null ?? {}
-  const currentSchemaFailureRate = latestRun.schema_failure_rate ?? 0
-  const currentProductsTotal = latestRun.products_total ?? 0
-  const currentProductsVerified = latestRun.products_verified ?? 0
+  let availabilityChanges: Array<{
+    productId: string
+    from: string | null
+    to: string | null
+  }> = []
 
-  const criticalFields = ['pmax', 'voc', 'vmp', 'isc']
-  const avgCriticalCoverage = criticalFields
-    .map(f => currentCoverage[f] ?? 0)
-    .reduce((sum, v) => sum + v, 0) / criticalFields.length
+  if (previousRun) {
+    const [{ data: currentComponents }, { data: previousComponents }] = await Promise.all([
+      supabase
+        .from('components')
+        .select('external_product_id, availability')
+        .eq('scrape_run_id', latestRun.id),
+      supabase
+        .from('components')
+        .select('external_product_id, availability')
+        .eq('scrape_run_id', previousRun.id),
+    ])
 
-  // ── Classification logic ────────────────────────────────────────────────────
-  let healthState: string
+    const previousById = new Map(
+      (previousComponents ?? [])
+        .filter(component => component.external_product_id)
+        .map(component => [component.external_product_id!, component.availability]),
+    )
+
+    availabilityChanges = (currentComponents ?? [])
+      .filter(component => component.external_product_id && previousById.has(component.external_product_id))
+      .map(component => ({
+        productId: component.external_product_id!,
+        from: previousById.get(component.external_product_id!) ?? null,
+        to: component.availability ?? null,
+      }))
+      .filter(change => change.from !== change.to)
+  }
+
+  let healthState: 'HEALTHY' | 'DEGRADED' | 'REAL_WORLD_CHANGE'
   let eventType: string
   let detail: string
 
   if (latestRun.status === 'failed') {
-    // Scrape itself failed
     healthState = 'DEGRADED'
     eventType = 'SCRAPE_FAILED'
-    detail = `Scrape run failed: ${latestRun.error_detail ?? 'unknown error'}`
-
+    detail = `Collection failed: ${latestRun.error_detail ?? 'unknown Bright Data error'}`
   } else if (
-    avgCriticalCoverage < DEGRADATION_FIELD_COVERAGE_THRESHOLD ||
-    currentSchemaFailureRate > SCHEMA_FAILURE_RATE_THRESHOLD
+    avgCoverage < DEGRADATION_FIELD_COVERAGE_THRESHOLD ||
+    schemaFailureRate > SCHEMA_FAILURE_RATE_THRESHOLD
   ) {
-    // Field coverage dropped significantly — likely DOM drift
     healthState = 'DEGRADED'
     eventType = 'DEGRADATION_DETECTED'
-    detail = `Critical field coverage dropped to ${(avgCriticalCoverage * 100).toFixed(0)}% (threshold: ${(DEGRADATION_FIELD_COVERAGE_THRESHOLD * 100).toFixed(0)}%). Schema failure rate: ${(currentSchemaFailureRate * 100).toFixed(0)}%. Likely DOM structure change — triggering self-heal.`
-
-  } else if (previousRun) {
-    // Coverage is healthy — check for availability changes (REAL_WORLD_CHANGE)
-    const prevCoverage = previousRun.field_coverage as Record<string, number> | null ?? {}
-    const prevCriticalCoverage = criticalFields
-      .map(f => prevCoverage[f] ?? 0)
-      .reduce((sum, v) => sum + v, 0) / criticalFields.length
-
-    // Schema health is similar between runs (within 10%)
-    const schemaHealthy = Math.abs(avgCriticalCoverage - prevCriticalCoverage) < 0.10
-
-    // Check if availability changed (product count similar, but verifiedComponents less)
-    const verifiedRatio = currentProductsTotal > 0
-      ? currentProductsVerified / currentProductsTotal
-      : 1
-
-    if (schemaHealthy && verifiedRatio > 0.5) {
-      // Schema intact — could be availability change
-      // (We'd need to compare actual product availability values, but at API level
-      //  we flag this when schema is healthy but availability field changed)
-      healthState = 'HEALTHY'
-      eventType = 'SCRAPE_COMPLETE'
-      detail = `Scrape complete. ${currentProductsVerified}/${currentProductsTotal} products verified. Field coverage: ${(avgCriticalCoverage * 100).toFixed(0)}%.`
-    } else {
-      healthState = 'HEALTHY'
-      eventType = 'SCRAPE_COMPLETE'
-      detail = `Scrape complete. Coverage: ${(avgCriticalCoverage * 100).toFixed(0)}%.`
-    }
+    detail = `Critical electrical-field coverage is ${(avgCoverage * 100).toFixed(0)}% and schema failure rate is ${(schemaFailureRate * 100).toFixed(0)}%. This is treated as source/DOM drift, not a market event.`
+  } else if (
+    previousRun &&
+    previousAvgCoverage !== null &&
+    Math.abs(avgCoverage - previousAvgCoverage) < 0.10 &&
+    availabilityChanges.length > 0
+  ) {
+    healthState = 'REAL_WORLD_CHANGE'
+    eventType = 'REAL_SUPPLY_CHANGE_DETECTED'
+    detail = `Scraper schema remains healthy, but ${availabilityChanges.length} product availability value(s) changed. GridForge treats this as a real supply event and recompiles.`
   } else {
-    // No previous run to compare — first run
-    healthState = avgCriticalCoverage > 0.8 ? 'HEALTHY' : 'DEGRADED'
+    healthState = 'HEALTHY'
     eventType = 'SCRAPE_COMPLETE'
-    detail = `Initial scrape. ${currentProductsVerified}/${currentProductsTotal} products verified. Coverage: ${(avgCriticalCoverage * 100).toFixed(0)}%.`
+    detail = `Collection healthy: ${latestRun.products_verified ?? 0}/${latestRun.products_total ?? 0} products fully verified; critical coverage ${(avgCoverage * 100).toFixed(0)}%.`
   }
 
-  // ── Persist health event ────────────────────────────────────────────────────
   const { data: healthEvent } = await supabase
     .from('source_health_events')
     .insert({
-      source_id: sourceId,
-      collector_id: collectorId,
+      source_id: body.sourceId,
+      collector_id: source.collector_id ?? 'unknown',
       event_type: eventType,
       health_state: healthState,
       detail,
       metadata: {
-        avgCriticalCoverage,
-        currentSchemaFailureRate,
-        currentProductsTotal,
-        currentProductsVerified,
-        criticalFieldCoverage: currentCoverage,
-        triggeredBy: triggeredBy ?? 'api',
+        avgCriticalCoverage: avgCoverage,
+        previousAvgCriticalCoverage: previousAvgCoverage,
+        schemaFailureRate,
+        availabilityChanges,
+        fieldCoverage: currentCoverage,
+        triggeredBy: body.triggeredBy ?? 'guardian_api',
       },
       scrape_run_id: latestRun.id,
     })
@@ -163,18 +157,23 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    sourceId,
-    collectorId,
+    sourceId: body.sourceId,
+    collectorId: source.collector_id,
+    scrapeRunId: latestRun.id,
     healthState,
     eventType,
     detail,
+    availabilityChanges,
     metrics: {
-      avgCriticalCoverage,
-      schemaFailureRate: currentSchemaFailureRate,
-      productsTotal: currentProductsTotal,
-      productsVerified: currentProductsVerified,
+      avgCriticalCoverage: avgCoverage,
+      previousAvgCriticalCoverage: previousAvgCoverage,
+      schemaFailureRate,
+      productsTotal: latestRun.products_total ?? 0,
+      productsVerified: latestRun.products_verified ?? 0,
+      fieldCoverage: currentCoverage,
     },
     shouldSelfHeal: healthState === 'DEGRADED',
-    healthEventId: healthEvent?.id,
+    shouldRecompile: healthState === 'REAL_WORLD_CHANGE',
+    healthEventId: healthEvent?.id ?? null,
   })
 }

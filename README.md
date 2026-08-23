@@ -8,43 +8,6 @@ GridForge turns live component inventory into electrically validated system desi
 
 Built for the WeMakeDevs and Bright Data **Into the Scrape-Verse** hackathon.
 
-## Live demo
-
-<p align="center">
-  <a href="https://youtu.be/B1N7L4Nb6Mo">
-    <img src="docs/screenshots/gridforge-landing.webp" alt="GridForge landing page with verified live scenarios" width="860" />
-  </a>
-</p>
-<p align="center"><sub><b>Start from a real requirement.</b> Pick a verified scenario or describe the off-grid system you need, then compile against live inventory.</sub></p>
-
-<p align="center">
-  <a href="docs/screenshots/gridforge-live-result.webp">
-    <img src="docs/screenshots/gridforge-live-result.webp" alt="GridForge validated live topology with Bright Data live proof" width="860" />
-  </a>
-</p>
-<p align="center"><sub><b>Live inventory becomes a validated topology.</b> The result keeps the Bright Data collector and scrape run visible alongside the compiled system.</sub></p>
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="docs/screenshots/gridforge-constraint-evidence.webp">
-        <img src="docs/screenshots/gridforge-constraint-evidence.webp" alt="GridForge deterministic electrical constraint evidence" />
-      </a>
-      <br />
-      <sub><b>Deterministic engineering evidence.</b> Nine explicit electrical, storage, load and budget checks — no opaque compatibility score.</sub>
-    </td>
-    <td width="50%" valign="top">
-      <a href="docs/screenshots/gridforge-live-provenance.webp">
-        <img src="docs/screenshots/gridforge-live-provenance.webp" alt="GridForge selected component with Bright Data provenance" />
-      </a>
-      <br />
-      <sub><b>Live component provenance.</b> Collector, scrape run, price and original source stay attached to the selected component.</sub>
-    </td>
-  </tr>
-</table>
-
-<p align="center"><a href="https://youtu.be/B1N7L4Nb6Mo"><b>▶ Watch the complete GridForge demo</b></a></p>
-
 ## The problem
 
 Designing a physical system from web inventory is harder than finding products.

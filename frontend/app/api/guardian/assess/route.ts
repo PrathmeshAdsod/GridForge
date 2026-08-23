@@ -16,9 +16,7 @@ export async function POST(request: NextRequest) {
     triggeredBy?: string
   }
 
-  if (!body.sourceId) {
-    return NextResponse.json({ error: 'Missing sourceId' }, { status: 400 })
-  }
+  if (!body.sourceId) return NextResponse.json({ error: 'Missing sourceId' }, { status: 400 })
 
   const supabase = createServerClient()
   const { data: source } = await supabase
@@ -30,7 +28,6 @@ export async function POST(request: NextRequest) {
   if (!source) return NextResponse.json({ error: 'Source not found' }, { status: 404 })
 
   let latestRun: any = null
-
   if (body.scrapeRunId) {
     const { data } = await supabase
       .from('scrape_runs')
@@ -50,31 +47,34 @@ export async function POST(request: NextRequest) {
     latestRun = data
   }
 
-  if (!latestRun) {
-    return NextResponse.json({ error: 'No scrape runs found for source' }, { status: 404 })
-  }
+  if (!latestRun) return NextResponse.json({ error: 'No scrape runs found for source' }, { status: 404 })
 
-  const { data: previousRows } = await supabase
-    .from('scrape_runs')
-    .select('*')
-    .eq('source_id', body.sourceId)
-    .eq('status', 'complete')
-    .neq('id', latestRun.id)
-    .order('started_at', { ascending: false })
-    .limit(1)
+  const [{ data: previousRows }, { data: latestHealthRows }] = await Promise.all([
+    supabase
+      .from('scrape_runs')
+      .select('*')
+      .eq('source_id', body.sourceId)
+      .eq('status', 'complete')
+      .neq('id', latestRun.id)
+      .order('started_at', { ascending: false })
+      .limit(1),
+    supabase
+      .from('source_health_events')
+      .select('*')
+      .eq('source_id', body.sourceId)
+      .order('created_at', { ascending: false })
+      .limit(1),
+  ])
 
   const previousRun = previousRows?.[0] ?? null
+  const previousHealthEvent = latestHealthRows?.[0] ?? null
   const currentCoverage = (latestRun.field_coverage ?? {}) as Record<string, number>
   const previousCoverage = (previousRun?.field_coverage ?? {}) as Record<string, number>
   const avgCoverage = averageCriticalCoverage(currentCoverage)
   const previousAvgCoverage = previousRun ? averageCriticalCoverage(previousCoverage) : null
   const schemaFailureRate = Number(latestRun.schema_failure_rate ?? 0)
 
-  let availabilityChanges: Array<{
-    productId: string
-    from: string | null
-    to: string | null
-  }> = []
+  let availabilityChanges: Array<{ productId: string; from: string | null; to: string | null }> = []
 
   if (previousRun) {
     const [{ data: currentComponents }, { data: previousComponents }] = await Promise.all([
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       .filter(change => change.from !== change.to)
   }
 
-  let healthState: 'HEALTHY' | 'DEGRADED' | 'REAL_WORLD_CHANGE'
+  let healthState: 'HEALTHY' | 'DEGRADED' | 'RECOVERED' | 'REAL_WORLD_CHANGE'
   let eventType: string
   let detail: string
 
@@ -112,13 +112,10 @@ export async function POST(request: NextRequest) {
     healthState = 'DEGRADED'
     eventType = 'SCRAPE_FAILED'
     detail = `Collection failed: ${latestRun.error_detail ?? 'unknown Bright Data error'}`
-  } else if (
-    avgCoverage < DEGRADATION_FIELD_COVERAGE_THRESHOLD ||
-    schemaFailureRate > SCHEMA_FAILURE_RATE_THRESHOLD
-  ) {
+  } else if (avgCoverage < DEGRADATION_FIELD_COVERAGE_THRESHOLD || schemaFailureRate > SCHEMA_FAILURE_RATE_THRESHOLD) {
     healthState = 'DEGRADED'
     eventType = 'DEGRADATION_DETECTED'
-    detail = `Critical electrical-field coverage is ${(avgCoverage * 100).toFixed(0)}% and schema failure rate is ${(schemaFailureRate * 100).toFixed(0)}%. This is treated as source/DOM drift, not a market event.`
+    detail = `Critical electrical-field coverage is ${(avgCoverage * 100).toFixed(0)}% and schema failure rate is ${(schemaFailureRate * 100).toFixed(0)}%. This is source/DOM drift, not a market event.`
   } else if (
     previousRun &&
     previousAvgCoverage !== null &&
@@ -128,6 +125,10 @@ export async function POST(request: NextRequest) {
     healthState = 'REAL_WORLD_CHANGE'
     eventType = 'REAL_SUPPLY_CHANGE_DETECTED'
     detail = `Scraper schema remains healthy, but ${availabilityChanges.length} product availability value(s) changed. GridForge treats this as a real supply event and recompiles.`
+  } else if (previousHealthEvent && ['VERIFYING', 'HEALING'].includes(previousHealthEvent.health_state)) {
+    healthState = 'RECOVERED'
+    eventType = 'SOURCE_RECOVERED'
+    detail = `Post-healing verification succeeded on the same collector. Critical coverage is ${(avgCoverage * 100).toFixed(0)}%; the source is recovered.`
   } else {
     healthState = 'HEALTHY'
     eventType = 'SCRAPE_COMPLETE'

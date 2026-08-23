@@ -6,7 +6,11 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
 const EXAMPLE_PROMPTS = [
+  "A remote wildlife monitoring station needs an off-grid system for 3.2 kWh/day, with 1.2 kW peak load and a ₹1.4 lakh budget in India.",
+  "A small rural medical outpost needs off-grid backup for 4 kWh/day, 1.8 kW peak load, with a ₹2.1 lakh budget in India.",
+  "A remote field office needs an off-grid system for 5 kWh/day, 2.5 kW peak load, under ₹2.3 lakh in India.",
   "Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.",
+  "A small rural fabrication workshop needs off-grid power for 7 kWh/day, 3.8 kW peak load, under ₹2.5 lakh in India.",
 ];
 
 const NAV_LINKS = [
@@ -362,7 +366,7 @@ function NLComposer() {
 
       <div style={{ marginTop: "1.25rem" }}>
         <p style={{ fontSize: "12px", color: "var(--text-tertiary)", marginBottom: "0.625rem", letterSpacing: "0.02em" }}>
-          Try the verified live example:
+          Try a verified live scenario:
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           {EXAMPLE_PROMPTS.map((prompt) => (

@@ -47,11 +47,12 @@ export function AuthButton() {
 
     try {
       const supabase = createBrowserClient();
+      const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+      const redirectTo = configuredSiteUrl || window.location.origin;
+
       const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-        },
+        options: { redirectTo },
       });
 
       if (signInError) {

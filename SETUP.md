@@ -1,174 +1,291 @@
 # GridForge — Setup Guide
 
-Complete setup for local development and production deployment.
+This guide reproduces the real GridForge demo and Live Mode using only free-tier infrastructure.
+
+## Stack
+
+| Service | Role |
+|---|---|
+| Vercel Hobby | Main Next.js app + public demo store |
+| Supabase Free | Postgres state/provenance + auth-ready persistence |
+| Bright Data Scraper Studio | Live collection + AI self-healing |
+| Gemini API | Natural-language parsing + explanations only |
+
+No Railway/Redis worker is required for the hackathon MVP.
 
 ---
 
-## Prerequisites
+## 1. Supabase
 
-| Tool | Version | Why |
-|------|---------|-----|
-| Node.js | 18+ | Frontend & demo store |
-| npm | 9+ | Package management |
-| Git | Any | Clone repo |
-| Supabase account | Free | Database |
-| Bright Data account | Free trial / Paid | Live scraping |
-| Google AI Studio key | Free | Gemini NL parsing |
-| Vercel account | Hobby (free) | Deployment |
+1. Create a Supabase project.
+2. Open **SQL Editor**.
+3. Run `backend/supabase/migrations/001_initial.sql`.
+4. Copy the project URL, anon key and service-role key into local/Vercel environment variables.
+
+Never expose or commit the service-role key.
 
 ---
 
-## 1. Supabase Setup
+## 2. Gemini
 
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → paste contents of `backend/supabase/migrations/001_initial.sql` → Run
-3. Go to **Settings → API** and copy:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+Create a Gemini API key in Google AI Studio and set:
 
----
-
-## 2. Google Gemini API Key
-
-1. Go to [makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
-2. Create an API key
-3. Copy it → `GEMINI_API_KEY`
-
----
-
-## 3. Bright Data Setup (for Live Mode)
-
-### Get API Token
-1. Sign up at [brightdata.com](https://brightdata.com)
-2. Go to **Settings → Account** → copy your API token → `BRIGHT_DATA_API_TOKEN`
-
-### Create the Demo Store Collector
-1. In the Bright Data dashboard, click **Scrapers** in the sidebar
-2. Click **New** → **Develop a web scraper** → **Open IDE** → **Start from scratch**
-3. Rename the scraper to `gridforge-demo-store`
-4. Copy the contents of `scraper/gridforge-demo-store.js` into the code editor
-5. Click **Save** / **Finish editing**
-6. Note the **Collector ID** from the URL (format: `c_XXXXXXXXXX`)
-7. Click **Publish to production**
-8. Copy the Collector ID → `BRIGHT_DATA_DEMO_STORE_COLLECTOR_ID`
-
-### After Deploying Demo Store
-Update the collector's target URL from `localhost:3001` to your Vercel demo store URL.
-
----
-
-## 4. Environment Variables
-
-Copy the template:
-```bash
-cp .env.example frontend/.env.local
-cp .env.example demo-store/.env.local  # only needs Supabase + DEMO_ADMIN_TOKEN
+```env
+GEMINI_API_KEY=...
 ```
 
-### `frontend/.env.local`
+GridForge currently uses:
+
+```text
+gemini-3.5-flash-lite   # primary
+gemini-3.1-flash-lite   # fallback
+```
+
+Gemini is deliberately outside the engineering truth path. It parses user language and explains a finished topology; it never invents electrical component specifications or decides compatibility.
+
+---
+
+## 3. Deploy the demo store
+
+The demo store must be public before Bright Data can scrape it.
+
+```bash
+cd demo-store
+npm install
+npx vercel --prod
+```
+
+Production URL used by GridForge:
+
+```text
+https://gridforge-demo-store.vercel.app
+```
+
+The store is server-rendered from Supabase state and exposes genuinely different Layout V1 and Layout V2 HTML.
+
+---
+
+## 4. Bright Data Scraper Studio
+
+### Important: Scraper Studio is NOT a Node/Puppeteer runtime
+
+Do **not** use:
+
+```js
+require('puppeteer')
+puppeteer.launch()
+page.goto()
+```
+
+Scraper Studio provides its own interaction functions (`navigate`, `parse`, `collect`) and a separate Cheerio-based **Parser code** editor.
+
+### Current GridForge collector
+
+```text
+c_mt4wvcs1e2p0phlh1
+```
+
+Collector IDs are provenance identifiers, not API secrets. The API token is secret and must remain only in local/Vercel environment variables.
+
+### Configure the collector
+
+Open the `gridforge-demo-store` scraper in Bright Data Scraper Studio.
+
+#### A. Interaction code
+
+Open **Interaction code** and paste the complete contents of:
+
+```text
+scraper/gridforge-demo-store.js
+```
+
+It should look conceptually like:
+
+```js
+const targetUrl = input?.url || 'https://gridforge-demo-store.vercel.app';
+navigate(targetUrl);
+const products = parse();
+for (const product of products) collect(product);
+```
+
+#### B. Parser code
+
+Open **Parser code** in the left-side stage tree and paste the complete contents of:
+
+```text
+scraper/gridforge-demo-store.parser.js
+```
+
+The parser uses Scraper Studio's Cheerio `$` object to read product cards and returns one flat record per component.
+
+#### C. Test it
+
+In the **Input** panel set:
+
+```text
+url = https://gridforge-demo-store.vercel.app
+```
+
+Then:
+
+1. Click **Play / Preview**.
+2. Confirm output rows include `solar_panel`, `inverter`, and `battery` records.
+3. Confirm panel rows contain `pmax`, `voc`, `vmp`, `isc`, `imp` and `voc_temp_coeff`.
+4. Confirm inverter rows contain `ac_output_w`, `battery_voltage_v`, `max_pv_v`, `mppt_range`, `max_pv_a`, `max_pv_w`.
+5. Confirm battery rows contain `voltage_v`, `capacity_ah`, `energy_kwh`, `dod_pct`.
+6. Click **Finish editing** / save to production.
+7. Keep the same collector ID `c_mt4wvcs1e2p0phlh1` throughout the self-healing demo.
+
+---
+
+## 5. Environment variables
+
+### Main frontend / Vercel project
+
 ```env
-# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 
-# Gemini
-GEMINI_API_KEY=AIza...
+GEMINI_API_KEY=...
 
-# Bright Data (Live Mode — optional for demo-only use)
-BRIGHT_DATA_API_TOKEN=your-token-here
-BRIGHT_DATA_DEMO_STORE_COLLECTOR_ID=c_xxxxxxxxxx
-BRIGHT_DATA_LOOM_SOLAR_COLLECTOR_ID=c_xxxxxxxxxx  # optional
-
-# Demo store
+BRIGHT_DATA_API_TOKEN=...
+BRIGHT_DATA_DEMO_STORE_COLLECTOR_ID=c_mt4wvcs1e2p0phlh1
 DEMO_STORE_URL=https://gridforge-demo-store.vercel.app
-DEMO_ADMIN_TOKEN=choose-a-secure-random-string
 ```
 
-### `demo-store/.env.local`
+Optional later source:
+
+```env
+BRIGHT_DATA_LOOM_SOLAR_COLLECTOR_ID=c_...
+```
+
+### Demo-store Vercel project
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-DEMO_ADMIN_TOKEN=same-value-as-above
+SUPABASE_SERVICE_ROLE_KEY=...
+DEMO_ADMIN_TOKEN=...
 ```
+
+Never commit `.env`, `.env.local`, HANDOFF.md, API tokens, service-role keys, deployment logs, or screenshots containing credentials.
 
 ---
 
-## 5. Local Development
+## 6. Run locally
 
 ```bash
-# Terminal 1 — Demo Store (Bright Data scraper target)
+# terminal 1
 cd demo-store
 npm install
 npm run dev
-# → http://localhost:3001
 
-# Terminal 2 — Frontend
+# terminal 2
 cd frontend
 npm install
 npm run dev
-# → http://localhost:3000
 ```
 
-### Verify everything works:
+---
+
+## 7. Recommended judge-demo requirement
+
+Use this requirement for the controlled supply-change demonstration:
+
+```text
+Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.
+```
+
+Why this requirement is useful:
+
+- baseline inventory can validate a 440 W panel topology;
+- the controlled stockout removes that panel;
+- a previously unavailable 375 W substitute becomes available;
+- the deterministic solver can change the PV arrangement from **2S×2P** to **3S×2P** rather than merely changing a label.
+
+Always trust the solver's actual result at runtime; do not narrate a topology change that did not occur.
+
+---
+
+## 8. Real demo sequence
+
+### Baseline
+
+1. Reset demo-store state to Layout V1.
+2. Run **Live compile**.
+3. Verify the response/UI shows:
+   - `dataSource = live`
+   - collector `c_mt4wvcs1e2p0phlh1`
+   - real Bright Data snapshot/run provenance
+   - panel + inverter + battery
+   - deterministic constraint evidence.
+4. Open **Source Guardian** and assess the latest run.
+
+### DOM drift / self-heal
+
+1. Change the public demo store to Layout V2 using the authenticated admin endpoint.
+2. Run Live compile again so the same collector sees the changed HTML.
+3. Assess the run. Critical electrical-field coverage should fall and Source Guardian should classify **DEGRADED**.
+4. Click **Heal same collector**.
+5. GridForge calls Bright Data's real `refactor_template` AI self-healing flow on `c_mt4wvcs1e2p0phlh1`.
+6. The controlled demo-store approval gate may be auto-approved/saved.
+7. Rerun Live compile using the **same collector ID**.
+8. Assess that new run. Only restored field coverage may produce **RECOVERED**.
+
+Do not manually switch back to V1 as a substitute for self-healing during the recorded proof. The website should remain Layout V2 while Bright Data repairs the collector.
+
+### Real supply change
+
+1. Return to a healthy scraper state.
+2. Trigger the demo-store `out_of_stock` action.
+3. The HTML/schema remains healthy; availability changes are real data.
+4. Run Live compile again.
+5. Source Guardian should classify **REAL_WORLD_CHANGE**, not DEGRADED.
+6. GridForge excludes unavailable inventory and reruns the deterministic compiler.
+7. Show the before/after topology if it genuinely changed.
+
+Core demo line:
+
+> **When the Web breaks, Bright Data heals the source. When supply changes, GridForge recompiles the system.**
+
+---
+
+## 9. Demo-store admin API
+
+Use the production demo-store URL and your private `DEMO_ADMIN_TOKEN`.
 
 ```bash
-# Test Gemini parse
-curl -X POST http://localhost:3000/api/parse \
+# Reset baseline: V1, 440W + 550W available, 375W unavailable
+curl -X POST https://gridforge-demo-store.vercel.app/api/admin \
+  -H "Authorization: Bearer $DEMO_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"nl":"Off-grid farmhouse, 8 kWh/day, 3 kW peak, budget 2 lakh rupees"}'
+  -d '{"action":"reset"}'
 
-# Test demo compile
-curl -X POST http://localhost:3000/api/compile \
+# Simulate website redesign / DOM drift
+curl -X POST https://gridforge-demo-store.vercel.app/api/admin \
+  -H "Authorization: Bearer $DEMO_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"mode":"demo","requirement":{"systemType":"off_grid","dailyEnergyKwh":8,"peakLoadKw":3,"budgetInr":200000,"location":"India","rawNl":"test","parsedBy":"gemini","confidence":"high"}}'
+  -d '{"action":"layout_v2"}'
 
-# Check demo store state
-curl http://localhost:3001/api/admin
+# Simulate a real supply change
+curl -X POST https://gridforge-demo-store.vercel.app/api/admin \
+  -H "Authorization: Bearer $DEMO_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"out_of_stock"}'
 ```
 
 ---
 
-## 6. Deploy to Vercel
+## 10. Verification before submission
 
-### Deploy Demo Store first
+Run:
 
 ```bash
-cd demo-store
-npx vercel --prod
+cd backend && npm install && npm test
+cd ../frontend && npm install && npm run build
+cd ../demo-store && npm install && npm run build
 ```
 
-Add environment variables in Vercel Dashboard → Project Settings → Environment Variables (see section 4 above, `demo-store/.env.local` values).
+Then verify the live application itself. HTTP 200 is not sufficient: a successful Live Mode result must contain a non-empty topology, panel/inverter/battery provenance, real `c_*` collector ID, real scrape run/snapshot ID, and constraint evidence.
 
-Get the URL (e.g. `https://gridforge-demo-store.vercel.app`).
-
-### Deploy Frontend
-
-```bash
-cd frontend
-npx vercel --prod
-```
-
-Add all `frontend/.env.local` values as Vercel environment variables. Set `DEMO_STORE_URL` to the demo store URL from above.
-
----
-
-## 7. Post-Deployment
-
-1. **Update collector URL** — In Bright Data Scraper Studio, change the target URL from `localhost:3001` to your demo store Vercel URL
-2. **Test live compile** — Visit your frontend Vercel URL → enter a requirement → click "Live compile"
-3. **Test self-healing** — Switch demo store to V2 layout → run a live compile → watch Source Guardian flag DEGRADED → trigger heal
-
----
-
-## Troubleshooting
-
-| Issue | Fix |
-|-------|-----|
-| `SUPABASE_SERVICE_ROLE_KEY` env var errors | Make sure you're using the `service_role` key, not the `anon` key |
-| `live_pipeline_not_configured` | Add `BRIGHT_DATA_DEMO_STORE_COLLECTOR_ID` to `.env.local` |
-| Demo store not updating on admin API | Check `DEMO_ADMIN_TOKEN` matches in both apps |
-| Gemini parse fails | Verify `GEMINI_API_KEY` is valid and has quota |
-| Supabase tables missing | Re-run `001_initial.sql` in Supabase SQL Editor |
+If Live Mode fails, show the real failure. Never silently use demo fixtures.

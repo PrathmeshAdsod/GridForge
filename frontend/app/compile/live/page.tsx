@@ -10,7 +10,10 @@ type LiveStage =
   | 'scraping'
   | 'solving'
   | 'complete'
+  | 'no_solution'
   | 'error';
+
+const LIVE_READY_PROMPT = 'Off-grid farmhouse using 6.5 kWh/day, 3 kW peak load, under ₹2.5 lakh in India.';
 
 const STAGE_LABELS: Record<LiveStage, string> = {
   parsing: 'Parsing requirement with Gemini…',
@@ -18,8 +21,15 @@ const STAGE_LABELS: Record<LiveStage, string> = {
   scraping: 'Collecting & verifying live component data…',
   solving: 'Running deterministic electrical compiler…',
   complete: 'Live system compiled',
+  no_solution: 'No valid system found',
   error: 'Live pipeline error',
 };
+
+const NO_SOLUTION_CODES = new Set([
+  'no_valid_topology',
+  'insufficient_verified_components',
+  'incomplete_requirement',
+]);
 
 function CompileLiveEntry() {
   const searchParams = useSearchParams();
@@ -69,11 +79,18 @@ function CompileLiveEntry() {
         const result = await compileResponse.json();
 
         if (!compileResponse.ok || !result.ok) {
-          setStage('error');
+          const isNoSolution = NO_SOLUTION_CODES.has(result.error);
+          setStage(isNoSolution ? 'no_solution' : 'error');
+
           const assumptions = Array.isArray(result.assumptions)
             ? `\nAssumptions: ${result.assumptions.join(' · ')}`
             : ''
-          setErrorDetail(`${result.detail ?? result.error ?? `HTTP ${compileResponse.status}`}${assumptions}`)
+
+          const candidateSummary = result.stats && typeof result.stats.totalCandidates === 'number'
+            ? `\n${result.stats.totalCandidates.toLocaleString()} candidate configurations were evaluated against the live inventory.`
+            : ''
+
+          setErrorDetail(`${result.detail ?? result.error ?? `HTTP ${compileResponse.status}`}${candidateSummary}${assumptions}`)
           return
         }
 
@@ -101,8 +118,24 @@ function CompileLiveEntry() {
   }, [q, router]);
 
   const isError = stage === 'error';
+  const isNoSolution = stage === 'no_solution';
+  const isStopped = isError || isNoSolution;
   const steps: LiveStage[] = ['parsing', 'triggering_scraper', 'scraping', 'solving'];
   const currentIndex = steps.indexOf(stage);
+
+  const statusBackground = isError
+    ? 'var(--color-error-bg)'
+    : isNoSolution
+      ? 'rgba(245,158,11,0.08)'
+      : 'rgba(245,158,11,0.08)';
+
+  const statusBorder = isError
+    ? 'var(--color-error)'
+    : 'rgba(245,158,11,0.22)';
+
+  const statusColor = isError
+    ? 'var(--color-error)'
+    : 'var(--accent-700)';
 
   return (
     <main style={{
@@ -123,17 +156,17 @@ function CompileLiveEntry() {
           gap: 7,
           padding: "5px 10px",
           borderRadius: 999,
-          background: isError ? "var(--color-error-bg)" : "rgba(245,158,11,0.08)",
-          border: `1px solid ${isError ? "var(--color-error)" : "rgba(245,158,11,0.22)"}`,
+          background: statusBackground,
+          border: `1px solid ${statusBorder}`,
           fontSize: 10,
           fontWeight: 700,
-          color: isError ? "var(--color-error)" : "var(--accent-700)",
+          color: statusColor,
           letterSpacing: "0.08em",
           textTransform: "uppercase",
           marginBottom: 18,
         }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
-          {isError ? 'Live pipeline stopped' : 'Live · Bright Data'}
+          {isError ? 'Live pipeline stopped' : isNoSolution ? 'Live inventory checked' : 'Live · Bright Data'}
         </div>
 
         <h1 style={{ fontSize: 28, letterSpacing: '-0.04em', fontWeight: 650, marginBottom: 8 }}>
@@ -143,7 +176,7 @@ function CompileLiveEntry() {
           {q}
         </p>
 
-        {!isError && (
+        {!isStopped && (
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
             {steps.map((step, index) => (
               <div key={step} style={{
@@ -160,26 +193,39 @@ function CompileLiveEntry() {
           </div>
         )}
 
-        {!isError && (
+        {!isStopped && (
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
             {elapsed}s · Scraper Studio collection can take a few minutes
           </p>
         )}
 
-        {isError && errorDetail && (
+        {isStopped && errorDetail && (
           <div style={{
-            background: 'var(--color-error-bg)',
-            border: '1px solid rgba(220,38,38,0.25)',
+            background: isError ? 'var(--color-error-bg)' : 'rgba(245,158,11,0.055)',
+            border: `1px solid ${isError ? 'rgba(220,38,38,0.25)' : 'rgba(245,158,11,0.25)'}`,
             borderRadius: 'var(--radius-lg)',
             padding: '1rem 1.1rem',
           }}>
             <p style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.65, color: 'var(--text-primary)', marginBottom: 14 }}>
               {errorDetail}
             </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <a href={`/compile/live?q=${encodeURIComponent(q)}`} className="btn btn-amber btn-sm" style={{ textDecoration: 'none' }}>Retry live</a>
+
+            {isNoSolution && (
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 14 }}>
+                The live pipeline is healthy. GridForge rejected this requirement because the currently available components cannot satisfy every engineering constraint at once.
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {isError ? (
+                <a href={`/compile/live?q=${encodeURIComponent(q)}`} className="btn btn-amber btn-sm" style={{ textDecoration: 'none' }}>Retry live</a>
+              ) : (
+                <a href={`/compile/live?q=${encodeURIComponent(LIVE_READY_PROMPT)}`} className="btn btn-amber btn-sm" style={{ textDecoration: 'none' }}>Try live-ready example</a>
+              )}
+              <Link href="/" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>Change requirement</Link>
               <a href={`/compile/demo?q=${encodeURIComponent(q)}`} className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>Explore demo</a>
             </div>
+
             <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 12 }}>
               Live Mode never silently falls back to fixtures.
             </p>

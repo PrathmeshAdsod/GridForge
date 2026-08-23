@@ -41,7 +41,8 @@ The Scraper Studio implementation is split correctly into:
 
 ```text
 scraper/gridforge-demo-store.js         # Interaction code
-scraper/gridforge-demo-store.parser.js  # Parser code (Cheerio)
+scraper/gridforge-demo-store.parser.js  # Current dual-layout parser (Cheerio)
+scraper/gridforge-demo-store.v1-baseline.parser.js # Controlled drift fixture
 ```
 
 Scraper Studio is **not** a Puppeteer/Node runtime; the interaction file uses Bright Data's `navigate()`, `parse()` and `collect()` functions.
@@ -87,6 +88,22 @@ Gemini is never allowed to invent Voc, Vmp, Isc, Imp, Pmax, battery capacity, in
 | **Live Mode** | Published Bright Data collector → real collection → normalization → deterministic solver → live topology. Live failures never silently fall back to fixtures. |
 
 The Live result page shows the actual selected topology, collector IDs, scrape-run IDs, component provenance and deterministic constraint evidence.
+
+### Submission-hardening evidence
+
+The production proof path has been exercised without fixture fallback using
+collector `c_mt4wvcs1e2p0phlh1` against both storefront layouts. Each layout
+returned five products with 100% coverage across every compiler-critical field.
+The 6.5 kWh/day requirement compiled to a validated 440 W, 2S×2P baseline.
+Changing only inventory values produced `REAL_WORLD_CHANGE` and a new validated
+375 W, 3S×2P topology; it did not invoke scraper healing.
+
+A separate controlled run published the V1-only baseline, switched the public
+store to V2, and reduced strict critical coverage and verification from 100% to
+0%. GridForge invoked Bright Data's real `refactor_template` flow on the same
+collector. After the AI repair completed and saved, a new V2 collection returned
+five verified products with 100% average and minimum critical coverage and 0%
+schema failures, so the strict Guardian emitted `RECOVERED` / `VERIFICATION_PASSED`.
 
 ---
 
@@ -215,7 +232,8 @@ GridForge/
 │   └── src/domain/constraints/
 ├── scraper/
 │   ├── gridforge-demo-store.js
-│   └── gridforge-demo-store.parser.js
+│   ├── gridforge-demo-store.parser.js
+│   └── gridforge-demo-store.v1-baseline.parser.js
 ├── .github/workflows/ci.yml
 ├── SETUP.md
 └── LICENSE

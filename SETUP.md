@@ -118,6 +118,11 @@ scraper/gridforge-demo-store.parser.js
 
 The parser uses Scraper Studio's Cheerio `$` object to read product cards and returns one flat record per component.
 
+The current parser supports both V1 and V2. For a repeatable self-healing
+demonstration, `scraper/gridforge-demo-store.v1-baseline.parser.js` is an
+explicitly vulnerable V1-only starting point. It is a controlled test fixture,
+not the desired final production parser.
+
 #### C. Test it
 
 In the **Input** panel set:
@@ -152,6 +157,8 @@ GEMINI_API_KEY=...
 BRIGHT_DATA_API_TOKEN=...
 BRIGHT_DATA_DEMO_STORE_COLLECTOR_ID=c_mt4wvcs1e2p0phlh1
 DEMO_STORE_URL=https://gridforge-demo-store.vercel.app
+NEXT_PUBLIC_SITE_URL=https://gridforge-app.vercel.app
+NEXT_PUBLIC_ENABLE_GOOGLE_AUTH=false
 ```
 
 Optional later source:
@@ -169,6 +176,14 @@ DEMO_ADMIN_TOKEN=...
 ```
 
 Never commit `.env`, `.env.local`, HANDOFF.md, API tokens, service-role keys, deployment logs, or screenshots containing credentials.
+
+### Optional Google sign-in
+
+Google OAuth is not required for the live compiler or judge flow. Keep
+`NEXT_PUBLIC_ENABLE_GOOGLE_AUTH=false` until the Google provider is enabled in
+Supabase Auth and the canonical callback/redirect URLs are configured. This
+keeps an unconfigured sign-in control out of the production UI. Set the flag to
+`true` only after completing an end-to-end sign-in and sign-out test.
 
 ---
 
@@ -223,14 +238,20 @@ Always trust the solver's actual result at runtime; do not narrate a topology ch
 
 ### DOM drift / self-heal
 
-1. Change the public demo store to Layout V2 using the authenticated admin endpoint.
-2. Run Live compile again so the same collector sees the changed HTML.
-3. Assess the run. Critical electrical-field coverage should fall and Source Guardian should classify **DEGRADED**.
-4. Click **Heal same collector**.
-5. GridForge calls Bright Data's real `refactor_template` AI self-healing flow on `c_mt4wvcs1e2p0phlh1`.
-6. The controlled demo-store approval gate may be auto-approved/saved.
-7. Rerun Live compile using the **same collector ID**.
-8. Assess that new run. Only restored field coverage may produce **RECOVERED**.
+1. While the store is on Layout V1, temporarily publish the controlled
+   `scraper/gridforge-demo-store.v1-baseline.parser.js` fixture to the same
+   collector and verify a healthy five-product run.
+2. Change the public demo store to Layout V2 using the authenticated admin endpoint.
+3. Run Live compile again so the same collector sees the changed HTML.
+4. Assess the run. Critical electrical-field coverage should fall and Source Guardian should classify **DEGRADED**.
+5. Click **Heal same collector**.
+6. GridForge calls Bright Data's real `refactor_template` AI self-healing flow on `c_mt4wvcs1e2p0phlh1`.
+7. The controlled demo-store approval gate may be auto-approved/saved.
+8. Rerun Live compile using the **same collector ID** while the store remains on V2.
+9. Assess that new run. Only five verified products and restored coverage across
+   every compiler-critical panel, inverter and battery field may produce **RECOVERED**.
+10. Finish with the dual-layout parser in `scraper/gridforge-demo-store.parser.js`
+    published to production.
 
 Do not manually switch back to V1 as a substitute for self-healing during the recorded proof. The website should remain Layout V2 while Bright Data repairs the collector.
 
@@ -281,7 +302,7 @@ curl -X POST https://gridforge-demo-store.vercel.app/api/admin \
 Run:
 
 ```bash
-cd backend && npm install && npm test
+cd backend && npm install && npm test && npm run typecheck
 cd ../frontend && npm install && npm run build
 cd ../demo-store && npm install && npm run build
 ```

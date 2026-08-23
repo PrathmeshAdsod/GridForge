@@ -23,12 +23,30 @@ async function brightData(path: string, options?: RequestInit) {
   return response
 }
 
-function progressText(progress: unknown): string {
-  try {
-    return JSON.stringify(progress).toLowerCase()
-  } catch {
-    return String(progress).toLowerCase()
+function progressStatuses(progress: unknown): string[] {
+  const statuses: string[] = []
+
+  function visit(value: unknown, depth: number) {
+    if (depth > 4 || !value || typeof value !== 'object') return
+
+    if (Array.isArray(value)) {
+      value.forEach(item => visit(item, depth + 1))
+      return
+    }
+
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      if (
+        (key === 'status' || key === 'state' || key === 'job_status') &&
+        typeof nested === 'string'
+      ) {
+        statuses.push(nested.trim().toLowerCase().replace(/\s+/g, '_'))
+      }
+      visit(nested, depth + 1)
+    }
   }
+
+  visit(progress, 0)
+  return statuses
 }
 
 /**
@@ -59,10 +77,10 @@ export async function GET(request: NextRequest) {
       `/dca/collectors/${encodeURIComponent(collectorId)}/refactor_template/progress`,
     )
     let progress = await progressResponse.json().catch(() => ({}))
-    let text = progressText(progress)
+    let statuses = progressStatuses(progress)
     let autoApproved = false
 
-    const pendingAnswer = text.includes('pending_answer') || text.includes('pending answer')
+    const pendingAnswer = statuses.includes('pending_answer')
 
     if (pendingAnswer && source.source_type === 'demo_store') {
       const resumeResponse = await brightData(
@@ -88,17 +106,15 @@ export async function GET(request: NextRequest) {
         `/dca/collectors/${encodeURIComponent(collectorId)}/refactor_template/progress`,
       )
       progress = await progressResponse.json().catch(() => ({}))
-      text = progressText(progress)
+      statuses = progressStatuses(progress)
     }
 
-    const failed = text.includes('failed') || text.includes('failure')
-    const complete = !failed && (
-      text.includes('completed') ||
-      text.includes('complete') ||
-      text.includes('success') ||
-      text.includes('finished') ||
-      text.includes('done')
-    ) && !text.includes('pending_answer')
+    const failed = statuses.some(status =>
+      ['failed', 'failure', 'error'].includes(status),
+    )
+    const complete = !failed && statuses.some(status =>
+      ['completed', 'complete', 'success', 'succeeded', 'finished', 'done'].includes(status),
+    ) && !statuses.includes('pending_answer')
 
     if (failed) {
       await supabase.from('source_health_events').insert({

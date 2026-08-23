@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     configs.push({
       collectorId: demoStoreCollectorId,
       name: 'GridForge Demo Store',
-      url: process.env.DEMO_STORE_URL ?? 'https://gridforge-demo-store.vercel.app',
+      url: process.env.DEMO_STORE_URL?.trim() || 'https://gridforge-demo-store.vercel.app',
       sourceType: 'demo_store',
     })
   }

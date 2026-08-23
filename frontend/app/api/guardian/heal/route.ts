@@ -55,12 +55,11 @@ export async function POST(request: NextRequest) {
   const reason = body.reason ?? 'Critical electrical fields disappeared after a website DOM/layout change.'
 
   const prompt = [
-    'Repair this Scraper Studio collector after DOM drift.',
-    'Preserve the existing flat output schema and field names.',
-    'For solar panels preserve product_id, product_type, manufacturer, model, price, availability, pmax, voc, vmp, isc, imp, voc_temp_coeff, efficiency and cell_type.',
-    'For inverters preserve ac_output_w, battery_voltage_v, max_pv_v, mppt_range, max_pv_a and max_pv_w.',
-    'For batteries preserve voltage_v, capacity_ah, energy_kwh, dod_pct, chemistry and cycle_life.',
-    'Use only values that are actually present on the page. Never infer or invent an electrical value.',
+    'Repair this GridForge Scraper Studio collector after the storefront changed from Layout V1 to Layout V2.',
+    'Preserve every existing flat output field name and emit exactly one record for every [data-product-id] card, including out-of-stock cards.',
+    'Use V1 data-spec selectors when present; otherwise read each V2 .spec-row label with its .spec-value.',
+    'In V2, map the inverter label Max PV Power to max_pv_w and preserve every other existing panel, inverter and battery field.',
+    'Use only values present on the page. Never infer or invent an electrical value.',
     `Observed failure: ${reason}`,
   ].join(' ')
 

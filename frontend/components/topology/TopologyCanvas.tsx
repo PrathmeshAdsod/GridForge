@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -186,7 +186,7 @@ export default function TopologyCanvas({ topology, simState, onNodeClick }: Topo
   // Update edges when simulation state changes
   useEffect(() => {
     setEdges(buildEdges(simState));
-  }, [simState.state, simState.pvOutputW, simState.batteryFlowW, simState.loadDrawW, setEdges]);
+  }, [simState.state, simState.pvOutputW, simState.batteryFlowW, simState.loadDrawW, setEdges]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update node data (battery charge, animation) during simulation
   useEffect(() => {

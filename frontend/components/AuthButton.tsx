@@ -15,6 +15,8 @@ export function AuthButton() {
     const placeholder = document.querySelector<HTMLButtonElement>('button[aria-label="Sign in"]');
     if (placeholder?.parentElement) {
       placeholder.style.display = "none";
+      // The portal target only exists after the browser DOM has mounted.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMountTarget(placeholder.parentElement);
     }
 

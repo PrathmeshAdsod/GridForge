@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import type { Database } from '@/lib/database.types'
 
-function derivedState(run: any): string {
+type ScrapeRun = Database['public']['Tables']['scrape_runs']['Row']
+
+function derivedState(run: ScrapeRun | null | undefined): string {
   if (!run) return 'NOT_RUN'
   if (run.status === 'failed') return 'DEGRADED'
   const coverage = (run.field_coverage ?? {}) as Record<string, number>
@@ -44,7 +47,7 @@ export async function GET() {
 
     return {
       ...source,
-      state: eventIsNewer ? latestEvent.health_state : derivedState(latestRun),
+      state: eventIsNewer && latestEvent ? latestEvent.health_state : derivedState(latestRun),
       latestRun,
       recentRuns: runs ?? [],
       recentEvents: events ?? [],

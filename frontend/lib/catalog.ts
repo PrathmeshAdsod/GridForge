@@ -177,7 +177,7 @@ function parseNum(raw: string | null | undefined): number | null {
 
 function parseMpptRange(raw: string | null | undefined): { min: number | null; max: number | null } {
   if (!raw) return { min: null, max: null }
-  const values = [...raw.matchAll(/-?\d+(?:\.\d+)?/g)].map(match => Number.parseFloat(match[0]))
+  const values = [...raw.matchAll(/\d+(?:\.\d+)?/g)].map(match => Number.parseFloat(match[0]))
   if (values.length < 2 || !Number.isFinite(values[0]) || !Number.isFinite(values[1])) {
     return { min: null, max: null }
   }
@@ -268,6 +268,8 @@ export function normalizeDemoStoreProduct(raw: Record<string, unknown>): Normali
 
 export function computeFieldCoverage(components: NormalizedComponent[]): Record<string, number> {
   const panels = components.filter(component => component.componentType === 'solar_panel')
+  const inverters = components.filter(component => component.componentType === 'inverter')
+  const batteries = components.filter(component => component.componentType === 'battery')
   const coverage = (items: NormalizedComponent[], field: keyof NormalizedComponent) =>
     items.length === 0 ? 0 : items.filter(item => item[field] !== null).length / items.length
 
@@ -277,6 +279,19 @@ export function computeFieldCoverage(components: NormalizedComponent[]): Record<
     vmp: coverage(panels, 'vmpV'),
     isc: coverage(panels, 'iscA'),
     imp: coverage(panels, 'impA'),
+    voc_temp_coeff: coverage(panels, 'vocTempCoeffPctPerC'),
+    ac_output_w: coverage(inverters, 'acOutputW'),
+    battery_voltage_v: coverage(inverters, 'batteryVoltageV'),
+    max_pv_v: coverage(inverters, 'maxPvVoltageV'),
+    mppt_range: inverters.length === 0
+      ? 0
+      : inverters.filter(item => item.mpptMinV !== null && item.mpptMaxV !== null).length / inverters.length,
+    max_pv_a: coverage(inverters, 'maxPvCurrentA'),
+    max_pv_w: coverage(inverters, 'maxPvPowerW'),
+    voltage_v: coverage(batteries, 'nominalVoltageV'),
+    capacity_ah: coverage(batteries, 'capacityAh'),
+    energy_kwh: coverage(batteries, 'capacityKwh'),
+    dod_pct: coverage(batteries, 'dodPct'),
     price: coverage(components, 'priceInr'),
     availability: coverage(components, 'availability'),
   }
@@ -380,7 +395,7 @@ export async function fetchCatalogFromCollector(
 
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
     try {
-      const response = await bdRequest(`/dca/dataset?id=${encodeURIComponent(brightDataRunId)}`)
+      const response = await bdRequest(`/dca/dataset?id=${encodeURIComponent(brightDataRunId)}&format=json`)
       const payload = await response.json().catch(() => null)
 
       if (Array.isArray(payload)) {

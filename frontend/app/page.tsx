@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── Shared Types (inline for now, will be extracted) ─────────────────────────
@@ -13,9 +14,7 @@ const EXAMPLE_PROMPTS = [
 ];
 
 const NAV_LINKS = [
-  { label: "Projects", href: "/projects" },
   { label: "Sources", href: "/sources" },
-  { label: "Docs", href: "/docs" },
 ];
 
 // ─── Mock Requirement Parser (will call Gemini backend) ──────────────────────
@@ -64,12 +63,12 @@ function Navbar() {
   return (
     <header className="w-full border-b border-[var(--border-subtle)] bg-[var(--surface-base)]">
       <nav className="container-main flex items-center justify-between h-14">
-        <a href="/" className="flex items-center gap-2.5 text-[var(--text-primary)]" aria-label="GridForge home">
+        <Link href="/" className="flex items-center gap-2.5 text-[var(--text-primary)]" aria-label="GridForge home">
           <GridForgeLogo />
           <span style={{ fontSize: "15px", fontWeight: 600, letterSpacing: "-0.02em" }}>
             GridForge
           </span>
-        </a>
+        </Link>
 
         <div className="flex items-center gap-1">
           {NAV_LINKS.map((link) => (
@@ -97,11 +96,14 @@ function Navbar() {
             </a>
           ))}
 
-          <div style={{ width: "1px", height: "16px", background: "var(--border-subtle)", margin: "0 0.5rem" }} />
-
-          <button className="btn btn-ghost btn-sm" aria-label="Sign in">
-            Sign in
-          </button>
+          {process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === "true" && (
+            <>
+              <div style={{ width: "1px", height: "16px", background: "var(--border-subtle)", margin: "0 0.5rem" }} />
+              <button className="btn btn-ghost btn-sm" aria-label="Sign in">
+                Sign in
+              </button>
+            </>
+          )}
         </div>
       </nav>
     </header>
@@ -183,6 +185,8 @@ function NLComposer() {
   useEffect(() => {
     clearTimeout(debounceRef.current);
     if (input.trim().length < 10) {
+      // Clear derived parser state when the external input becomes incomplete.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setChips(null);
       return;
     }
@@ -608,9 +612,8 @@ function Footer() {
         </div>
         <div style={{ display: "flex", gap: "1.5rem" }}>
           {[
-            { label: "GitHub", href: "https://github.com" },
+            { label: "GitHub", href: "https://github.com/PrathmeshAdsod/GridForge" },
             { label: "Bright Data", href: "https://brightdata.com" },
-            { label: "Architecture", href: "/docs" },
           ].map((link) => (
             <a
               key={link.label}

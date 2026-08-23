@@ -268,6 +268,6 @@ export function createSourceEvent(
     type,
     timestamp: new Date().toISOString(),
     detail,
-    metadata,
+    ...(metadata !== undefined ? { metadata } : {}),
   };
 }

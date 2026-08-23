@@ -382,7 +382,7 @@ function useSimulateSun(topology: Topology) {
 
       // Battery charges if PV > Load, discharges if PV < Load
       const netW = pvW - loadW;
-      let battFlow = netW * 0.9; // 90% efficiency
+      const battFlow = netW * 0.9; // 90% efficiency
       let newBatPct = simState.batteryChargePct + (battFlow / (topology.batteryUnitCount * 1200)) * 0.5;
       newBatPct = Math.max(10, Math.min(95, newBatPct));
 
@@ -527,9 +527,9 @@ export default function DesignPage() {
         {/* Top metrics row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", background: "var(--border-subtle)", borderRadius: "var(--radius-lg)", overflow: "hidden", marginBottom: "1.5rem", border: "1px solid var(--border-subtle)" }}>
           {[
-            { label: "Component cost", value: `₹${totalCostL}L`, sub: `of ₹2L budget` },
-            { label: "Daily energy", value: `${metrics.dailyEnergyKwh.toFixed(1)} kWh`, sub: "at 5 peak sun hrs" },
-            { label: "Usable storage", value: `${metrics.storedEnergyKwh.toFixed(1)} kWh`, sub: `${topology.batteryUnitCount} battery units` },
+            { label: "Component cost", value: `₹${totalCostL}L`, sub: `of ₹2L budget`, isStatus: false },
+            { label: "Daily energy", value: `${metrics.dailyEnergyKwh.toFixed(1)} kWh`, sub: "at 5 peak sun hrs", isStatus: false },
+            { label: "Usable storage", value: `${metrics.storedEnergyKwh.toFixed(1)} kWh`, sub: `${topology.batteryUnitCount} battery units`, isStatus: false },
             { label: "Validation", value: topology.validationStatus, sub: `${topology.constraints.filter(c => c.status === "passed").length}/${topology.constraints.length} checks passed`, isStatus: true },
           ].map((m, i) => (
             <div key={i} style={{ padding: "1rem 1.25rem", background: "white" }}>
@@ -540,7 +540,7 @@ export default function DesignPage() {
                 fontSize: "1.4rem",
                 fontWeight: 700,
                 letterSpacing: "-0.03em",
-                color: (m as any).isStatus
+                color: m.isStatus
                   ? (topology.validationStatus === "VALIDATED" ? "var(--color-verified)" : "var(--accent-700)")
                   : "var(--text-primary)",
                 lineHeight: 1,

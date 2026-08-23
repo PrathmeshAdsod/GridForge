@@ -274,7 +274,6 @@ function CompilePageInner() {
     });
   }, [router]);
 
-  const currentStageIndex = STAGES.findIndex((s) => stageStatuses[s.id] === "running");
   const completedCount = STAGES.filter((s) => stageStatuses[s.id] === "complete").length;
 
   return (
@@ -406,4 +405,3 @@ export default function CompilePage() {
     </Suspense>
   );
 }
-

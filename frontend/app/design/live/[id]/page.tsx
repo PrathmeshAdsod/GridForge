@@ -89,6 +89,8 @@ export default function LiveDesignPage() {
   useEffect(() => {
     const raw = sessionStorage.getItem(`compile-${params.id}`)
     if (!raw) {
+      // Reading sessionStorage is the external synchronization performed here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMissing(true)
       return
     }

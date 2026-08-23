@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import type { Database } from '@/lib/database.types'
+
+type ScrapeRun = Database['public']['Tables']['scrape_runs']['Row']
 
 const DEGRADATION_FIELD_COVERAGE_THRESHOLD = 0.60
 const SCHEMA_FAILURE_RATE_THRESHOLD = 0.30
 const RECOVERY_FIELD_COVERAGE_THRESHOLD = 0.90
 const RECOVERY_SCHEMA_FAILURE_THRESHOLD = 0.10
-const CRITICAL_FIELDS = ['pmax', 'voc', 'vmp', 'isc'] as const
+const CRITICAL_FIELDS = [
+  'pmax', 'voc', 'vmp', 'isc', 'imp', 'voc_temp_coeff',
+  'ac_output_w', 'battery_voltage_v', 'max_pv_v', 'mppt_range', 'max_pv_a', 'max_pv_w',
+  'voltage_v', 'capacity_ah', 'energy_kwh', 'dod_pct',
+] as const
 
 function averageCriticalCoverage(coverage: Record<string, number>): number {
   return CRITICAL_FIELDS.reduce((sum, field) => sum + Number(coverage[field] ?? 0), 0) / CRITICAL_FIELDS.length
+}
+
+function minimumCriticalCoverage(coverage: Record<string, number>): number {
+  return Math.min(...CRITICAL_FIELDS.map(field => Number(coverage[field] ?? 0)))
 }
 
 export async function POST(request: NextRequest) {
@@ -29,7 +40,7 @@ export async function POST(request: NextRequest) {
 
   if (sourceError || !source) return NextResponse.json({ error: 'Source not found' }, { status: 404 })
 
-  let latestRun: any = null
+  let latestRun: ScrapeRun | null = null
   if (body.scrapeRunId) {
     const { data } = await supabase
       .from('scrape_runs')
@@ -74,8 +85,12 @@ export async function POST(request: NextRequest) {
   const currentCoverage = (latestRun.field_coverage ?? {}) as Record<string, number>
   const previousCoverage = (previousRun?.field_coverage ?? {}) as Record<string, number>
   const avgCoverage = averageCriticalCoverage(currentCoverage)
+  const minCoverage = minimumCriticalCoverage(currentCoverage)
   const previousAvgCoverage = previousRun ? averageCriticalCoverage(previousCoverage) : null
   const schemaFailureRate = Number(latestRun.schema_failure_rate ?? 0)
+  const verificationRate = Number(latestRun.products_total ?? 0) > 0
+    ? Number(latestRun.products_verified ?? 0) / Number(latestRun.products_total)
+    : 0
 
   let availabilityChanges: Array<{
     productId: string
@@ -122,6 +137,8 @@ export async function POST(request: NextRequest) {
 
   const schemaDegraded =
     avgCoverage < DEGRADATION_FIELD_COVERAGE_THRESHOLD ||
+    minCoverage < DEGRADATION_FIELD_COVERAGE_THRESHOLD ||
+    verificationRate < DEGRADATION_FIELD_COVERAGE_THRESHOLD ||
     schemaFailureRate > SCHEMA_FAILURE_RATE_THRESHOLD
 
   const awaitingHealVerification = Boolean(
@@ -149,6 +166,8 @@ export async function POST(request: NextRequest) {
   } else if (awaitingHealVerification) {
     const recoveryStrongEnough =
       avgCoverage >= RECOVERY_FIELD_COVERAGE_THRESHOLD &&
+      minCoverage >= RECOVERY_FIELD_COVERAGE_THRESHOLD &&
+      verificationRate >= RECOVERY_FIELD_COVERAGE_THRESHOLD &&
       schemaFailureRate <= RECOVERY_SCHEMA_FAILURE_THRESHOLD
 
     if (recoveryStrongEnough) {
@@ -185,6 +204,8 @@ export async function POST(request: NextRequest) {
       detail,
       metadata: {
         avgCriticalCoverage: avgCoverage,
+        minCriticalCoverage: minCoverage,
+        verificationRate,
         previousAvgCriticalCoverage: previousAvgCoverage,
         schemaFailureRate,
         availabilityChanges,
@@ -216,6 +237,8 @@ export async function POST(request: NextRequest) {
     stockouts,
     metrics: {
       avgCriticalCoverage: avgCoverage,
+      minCriticalCoverage: minCoverage,
+      verificationRate,
       previousAvgCriticalCoverage: previousAvgCoverage,
       schemaFailureRate,
       productsTotal: latestRun.products_total ?? 0,

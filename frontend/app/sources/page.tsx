@@ -157,7 +157,7 @@ export default function SourcesPage() {
           <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--accent-700)', fontWeight: 750, marginBottom: 9 }}>Real telemetry · real c_* collectors</div>
           <h1 style={{ fontSize: 34, letterSpacing: '-.045em', lineHeight: 1.08, fontWeight: 650, marginBottom: 10 }}>Proof, not a simulated dashboard.</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-            This surface reads persisted Bright Data collection runs and Source Guardian events. A degraded controlled demo source can invoke Bright Data's actual AI self-healing API on the same collector ID.
+            This surface reads persisted Bright Data collection runs and Source Guardian events. A degraded controlled demo source can invoke Bright Data&apos;s actual AI self-healing API on the same collector ID.
           </p>
         </div>
 

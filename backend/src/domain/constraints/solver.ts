@@ -311,7 +311,7 @@ export function compileTopology(input: CompilerInput): CompilerResult {
                     .filter((c) => c.status === "failed")
                     .map((c) => c.reason)
                     .join("; "),
-                  failedConstraint: firstFailed,
+                  failedConstraint: firstFailed ?? "unknown",
                 });
                 continue;
               }

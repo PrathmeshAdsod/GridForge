@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
+import Link from "next/link";
 
 type LiveStage =
   | 'parsing'
@@ -113,7 +114,7 @@ function CompileLiveEntry() {
     }}>
       <section style={{ width: "min(560px, 100%)" }}>
         <div style={{ marginBottom: 28 }}>
-          <a href="/" style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "none" }}>← GridForge</a>
+          <Link href="/" style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "none" }}>← GridForge</Link>
         </div>
 
         <div style={{

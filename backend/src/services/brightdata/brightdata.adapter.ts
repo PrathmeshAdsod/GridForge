@@ -68,7 +68,7 @@ async function brightDataRequest<T>(
       Authorization: `Bearer ${apiToken}`,
       "Content-Type": "application/json",
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
   if (!response.ok) {
@@ -100,7 +100,7 @@ export function createRealBrightDataAdapter(apiToken: string): BrightDataAdapter
       try {
         const result = await brightDataRequest<{ status?: string; data?: T[] } | T[]>(
           "GET",
-          `/dca/dataset?id=${collectionId}`,
+          `/dca/dataset?id=${encodeURIComponent(collectionId)}&format=json`,
           apiToken
         );
 
@@ -153,8 +153,8 @@ export function createRealBrightDataAdapter(apiToken: string): BrightDataAdapter
       return {
         jobId: result.job_id ?? collectorId,
         status,
-        description: result.description,
-        proposedDiff: result.diff,
+        ...(result.description !== undefined ? { description: result.description } : {}),
+        ...(result.diff !== undefined ? { proposedDiff: result.diff } : {}),
       };
     },
 

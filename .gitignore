@@ -1,0 +1,68 @@
+# ============================================================
+# GridForge — .gitignore
+# ============================================================
+
+# ── Secrets & Environment ────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Private docs (not for public repo) ───────────────────────
+HANDOFF.md
+DEPLOY.md
+BRIGHT_DATA_SETUP.md
+walkthrough.md
+
+# ── Node ─────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+package-lock.json
+
+# ── Next.js ──────────────────────────────────────────────────
+.next/
+out/
+dist/
+build/
+
+# ── TypeScript build info ─────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Test outputs ─────────────────────────────────────────────
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# ── Supabase local ───────────────────────────────────────────
+supabase/.branches/
+supabase/.temp/
+supabase/logs/
+
+# ── OS / Editor ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.log.*
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# ── Caches ───────────────────────────────────────────────────
+.cache/
+.turbo/
+.eslintcache
+
+# ── Temporary / Debug ────────────────────────────────────────
+*.tmp
+*.temp
+debug/
+tmp/
+screenshots/
+*.screenshot.png
+
+# ── AI agent files (IDE internals) ───────────────────────────
+AGENTS.md
+CLAUDE.md
+.gemini/

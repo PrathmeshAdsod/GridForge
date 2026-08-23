@@ -1,0 +1,52 @@
+name: GridForge CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+
+      - name: Frontend build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          GEMINI_API_KEY: ci-placeholder
+          BRIGHT_DATA_API_TOKEN: ci-placeholder
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Demo store build
+        working-directory: demo-store
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          DEMO_ADMIN_TOKEN: ci-placeholder
+        run: |
+          npm install --no-audit --no-fund
+          npm run build

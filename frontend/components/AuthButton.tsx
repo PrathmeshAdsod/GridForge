@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { User } from "@supabase/supabase-js";
 import { createBrowserClient } from "@/lib/supabase";
 
@@ -8,8 +9,15 @@ export function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mountTarget, setMountTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    const placeholder = document.querySelector<HTMLButtonElement>('button[aria-label="Sign in"]');
+    if (placeholder?.parentElement) {
+      placeholder.style.display = "none";
+      setMountTarget(placeholder.parentElement);
+    }
+
     const supabase = createBrowserClient();
     let mounted = true;
 
@@ -29,6 +37,7 @@ export function AuthButton() {
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
+      if (placeholder) placeholder.style.display = "";
     };
   }, []);
 
@@ -68,27 +77,22 @@ export function AuthButton() {
     }
   }
 
-  if (user) {
-    const label =
-      (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name) ||
-      user.email ||
-      "Account";
+  if (!mountTarget) return null;
 
-    return (
-      <button
-        className="btn btn-ghost btn-sm"
-        type="button"
-        onClick={signOut}
-        disabled={busy}
-        title={error ?? `Signed in as ${label}. Click to sign out.`}
-        aria-label="Sign out"
-      >
-        {busy ? "Signing out…" : label}
-      </button>
-    );
-  }
-
-  return (
+  const control = user ? (
+    <button
+      className="btn btn-ghost btn-sm"
+      type="button"
+      onClick={signOut}
+      disabled={busy}
+      title={error ?? `Signed in as ${(typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name) || user.email || "Account"}. Click to sign out.`}
+      aria-label="Sign out"
+    >
+      {busy
+        ? "Signing out…"
+        : (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name) || user.email || "Account"}
+    </button>
+  ) : (
     <button
       className="btn btn-ghost btn-sm"
       type="button"
@@ -100,4 +104,6 @@ export function AuthButton() {
       {busy ? "Checking…" : error ? "Retry sign in" : "Sign in"}
     </button>
   );
+
+  return createPortal(control, mountTarget);
 }

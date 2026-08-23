@@ -28,22 +28,28 @@ export async function POST(request: NextRequest) {
       update = {
         panel_440w_in_stock: true,
         panel_550w_in_stock: true,
-        panel_375w_in_stock: true,
+        panel_375w_in_stock: false,
         updated_at: now,
       }
       break
     case 'out_of_stock':
-      // The primary 440W item sells out. The cheaper 375W alternative remains
-      // available, forcing a genuine 2S×2P -> 3S×2P recompilation for the
-      // recommended live-demo requirement.
-      update = { panel_440w_in_stock: false, updated_at: now }
+      // This is a REAL_WORLD_CHANGE, not DOM drift. The schema remains healthy.
+      // Primary 440W inventory disappears while a previously unavailable 375W
+      // substitute becomes available. For the recommended 6.5 kWh/day demo,
+      // the deterministic compiler changes from a 2S×2P 440W array to a
+      // 3S×2P 375W array — a visibly different topology.
+      update = {
+        panel_440w_in_stock: false,
+        panel_375w_in_stock: true,
+        updated_at: now,
+      }
       break
     case 'reset':
       update = {
         layout_version: 'v1',
         panel_440w_in_stock: true,
         panel_550w_in_stock: true,
-        panel_375w_in_stock: true,
+        panel_375w_in_stock: false,
         updated_at: now,
       }
       break

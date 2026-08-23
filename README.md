@@ -4,11 +4,10 @@
 
 GridForge turns live component inventory into electrically validated system designs. The hackathon implementation focuses on off-grid solar, where panels, inverters and batteries must satisfy real electrical constraints before they can become part of a system.
 
-[Live application](https://gridforge-app.vercel.app/) | [Source integrity](https://gridforge-app.vercel.app/sources) | [Public demo store](https://gridforge-demo-store.vercel.app/) | [GitHub Actions](https://github.com/PrathmeshAdsod/GridForge/actions)
+[Live application](https://gridforge-app.vercel.app/) | [Video Demo](https://youtu.be/B1N7L4Nb6Mo) | [Source integrity](https://gridforge-app.vercel.app/sources) | [Public demo store](https://gridforge-demo-store.vercel.app/) | [GitHub Actions](https://github.com/PrathmeshAdsod/GridForge/actions)
 
 Built for the WeMakeDevs and Bright Data **Into the Scrape-Verse** hackathon.
 
-<!-- Final demo video and selected product screenshots will be added here in the final media commit. -->
 
 ## The problem
 

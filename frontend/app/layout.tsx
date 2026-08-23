@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthButton } from "@/components/AuthButton";
 
 export const metadata: Metadata = {
   title: "GridForge — Compile Physical Systems from the Live Web",
@@ -36,6 +37,7 @@ export default function RootLayout({
           </div>
         )}
         {children}
+        <AuthButton />
       </body>
     </html>
   );

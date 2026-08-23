@@ -346,23 +346,6 @@ The current hackathon implementation is intentionally scoped to off-grid solar. 
 
 The project uses public web data only. API tokens, Supabase service-role credentials and demo-store admin credentials remain server-side and are excluded from the repository.
 
-## Submission checklist
-
-The core judge path currently has:
-
-- real published Bright Data collector
-- live trigger, poll and dataset flow
-- 5 / 5 verified components in the proof inventory
-- deterministic topology compilation
-- visible collector and run provenance
-- genuine same-collector Bright Data self-healing
-- strict post-heal verification
-- real stock-state change classification
-- topology recompilation after stockout
-- deterministic Demo Mode fallback
-- passing CI on the validated production build
-
-The final media commit will add the demo video link and selected screenshots at the top of this README.
 
 ## License
 
